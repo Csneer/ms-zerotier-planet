@@ -41,9 +41,9 @@ COPY patch/ztncui-modern.patch /tmp/ztncui-modern.patch
 COPY patch/ztncui-mtu.patch /tmp/ztncui-mtu.patch
 COPY patch/ztncui-downloads.patch /tmp/ztncui-downloads.patch
 RUN cd /opt/ztncui \
-    && patch -p1 < /tmp/ztncui-modern.patch \
-    && patch -p1 < /tmp/ztncui-mtu.patch \
-    && patch -p1 < /tmp/ztncui-downloads.patch \
+    && patch -l -p1 < /tmp/ztncui-modern.patch \
+    && patch -l -p1 < /tmp/ztncui-mtu.patch \
+    && patch -l -p1 < /tmp/ztncui-downloads.patch \
     && cd src \
     && npm install --package-lock-only --ignore-scripts \
     && npm ci --omit=dev \

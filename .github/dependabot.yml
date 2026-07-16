@@ -11,3 +11,8 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    ignore:
+      # Runtime major upgrades require explicit ztncui compatibility testing.
+      - dependency-name: node
+        update-types:
+          - version-update:semver-major

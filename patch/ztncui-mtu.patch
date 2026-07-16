@@ -59,7 +59,7 @@ diff --git a/src/routes/zt_controller.js b/src/routes/zt_controller.js
 index c7db806..7bd3a19 100644
 --- a/src/routes/zt_controller.js
 +++ b/src/routes/zt_controller.js
-@@ -31,5 +31,9 @@ router.post('/network/:nwid/delete', restrict, networkController.network_delete_
+@@ -31,5 +31,9 @@
  // POST request for Network name
  router.post('/network/:nwid/name', restrict, networkController.name);
 

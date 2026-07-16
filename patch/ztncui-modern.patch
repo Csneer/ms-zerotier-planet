@@ -25,9 +25,7 @@ diff --git a/src/bin/www b/src/bin/www
 index 49127ad..8e31d43 100755
 --- a/src/bin/www
 +++ b/src/bin/www
-@@ -40,8 +40,9 @@ app.set('https_host', https_host);
-  */
-
+@@ -39,7 +39,8 @@ app.set('https_host', https_host);
  const http_all_interfaces = process.env.HTTP_ALL_INTERFACES || null;
 -if (http_all_interfaces) {
 -    console.log('Listening for HTTP requests on port ' + http_port + ' on all interfaces');
