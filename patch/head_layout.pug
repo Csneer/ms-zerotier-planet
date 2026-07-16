@@ -1,0 +1,49 @@
+mixin nav_item(name, displayName, href, icon)
+  li(class=((navigate && navigate.active === name) ? 'active' : ''))
+    a(href=href)
+      if icon
+        span.glyphicon(class='glyphicon-' + icon aria-hidden='true')
+      span.nav-label= displayName
+
+mixin json_value(value)
+  - if ((!!value) && (value.constructor == Object || value.constructor == Array))
+      code(style='white-space: pre-wrap; word-break: break-word;')= JSON.stringify(value, null, 2)
+  - else
+      code= value
+
+doctype html
+html(lang='en')
+  head
+    title #{title || 'Control Center'} · ZeroTier Planet
+    meta(charset='utf-8')
+    meta(name='viewport' content='width=device-width, initial-scale=1')
+    meta(name='theme-color' content='#101827')
+    link(rel='stylesheet' href='/bscss/bootstrap.min.css')
+    link(rel='stylesheet' href='/stylesheets/style.css')
+    link(rel='stylesheet' href='/stylesheets/ui-modern.css')
+    script(src='/jqjs/jquery.min.js')
+    script(src='/bsjs/bootstrap.min.js')
+  body
+    nav.navbar.navbar-inverse.navbar-fixed-top.app-navbar
+      .container-fluid.app-navbar-inner
+        .navbar-header
+          button.navbar-toggle.collapsed(type='button' data-toggle='collapse' data-target='#appNavigation' aria-expanded='false')
+            span.sr-only Toggle navigation
+            span.icon-bar
+            span.icon-bar
+            span.icon-bar
+          a.navbar-brand.app-brand(href='/controller')
+            span.brand-mark ZT
+            span.brand-text
+              strong ZeroTier Planet
+              small Control Center
+        .collapse.navbar-collapse#appNavigation
+          ul.nav.navbar-nav.app-nav
+            block nav_items
+          ul.nav.navbar-nav.navbar-right.app-nav
+            li
+              block nav_login
+                a(href='/logout')
+                  span.glyphicon.glyphicon-log-out(aria-hidden='true')
+                  span.nav-label Sign out
+    block body_content

@@ -1,0 +1,6 @@
+.git
+.github
+data
+backups
+.env
+*.md

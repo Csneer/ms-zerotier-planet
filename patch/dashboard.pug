@@ -1,0 +1,83 @@
+extends controller_layout
+
+block content
+  if error
+    .alert.alert-danger
+      strong Controller unavailable:
+      | #{error}
+  else
+    section.hero-card
+      .hero-copy
+        span.eyebrow Private network control plane
+        h1 Your ZeroTier, under your control.
+        p Manage networks, authorize devices, tune MTU, and distribute Planet configuration from one place.
+        .hero-actions
+          a.btn.btn-primary.btn-lg(href='/controller/networks')
+            span.glyphicon.glyphicon-globe(aria-hidden='true')
+            |  Manage networks
+          a.btn.btn-default.btn-lg(href='/controller/downloads')
+            span.glyphicon.glyphicon-download-alt(aria-hidden='true')
+            |  Download Planet
+      .hero-status
+        span.status-pill(class=zt_status.online ? 'is-online' : 'is-offline')
+          span.status-dot
+          | #{zt_status.online ? 'ONLINE' : 'OFFLINE'}
+        small Controller status
+
+    .row.status-grid
+      .col-sm-4
+        .stat-card
+          .stat-icon
+            span.glyphicon.glyphicon-screenshot
+          .stat-content
+            span.stat-label Node address
+            strong= zt_status.address
+      .col-sm-4
+        .stat-card
+          .stat-icon
+            span.glyphicon.glyphicon-tags
+          .stat-content
+            span.stat-label ZeroTier version
+            strong= zt_status.version
+      .col-sm-4
+        .stat-card
+          .stat-icon
+            span.glyphicon.glyphicon-transfer
+          .stat-content
+            span.stat-label TCP fallback
+            strong= zt_status.tcpFallbackActive ? 'Active' : 'Not active'
+
+    .section-heading
+      div
+        span.eyebrow Quick actions
+        h2 Everything important, one click away
+
+    .row.action-grid
+      .col-sm-6.col-lg-3
+        a.action-card(href='/controller/networks')
+          span.action-icon.action-blue
+            span.glyphicon.glyphicon-globe
+          strong Networks
+          p View members, routes, address pools, and MTU settings.
+          span.action-link Open networks →
+      .col-sm-6.col-lg-3
+        a.action-card(href='/controller/network/create')
+          span.action-icon.action-violet
+            span.glyphicon.glyphicon-plus
+          strong New network
+          p Create a private network with the optimized 1280 MTU default.
+          span.action-link Create network →
+      .col-sm-6.col-lg-3
+        a.action-card(href='/controller/downloads')
+          span.action-icon.action-cyan
+            span.glyphicon.glyphicon-download-alt
+          strong Configuration files
+          p Download Planet and Moon files with SHA-256 verification.
+          span.action-link View downloads →
+      .col-sm-6.col-lg-3
+        a.action-card(href='/users')
+          span.action-icon.action-green
+            span.glyphicon.glyphicon-user
+          strong Administrators
+          p Manage Web console users and credentials.
+          span.action-link Manage users →

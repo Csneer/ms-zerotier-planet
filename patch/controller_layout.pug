@@ -1,0 +1,12 @@
+extends head_layout
+
+block nav_items
+  +nav_item('controller_home', 'Dashboard', '/controller', 'dashboard')
+  +nav_item('networks', 'Networks', '/controller/networks', 'globe')
+  +nav_item('add_network', 'New network', '/controller/network/create', 'plus')
+  +nav_item('downloads', 'Downloads', '/controller/downloads', 'download-alt')
+  +nav_item('users', 'Users', '/users', 'user')
+
+block body_content
+  main.container.app-shell
+    block content

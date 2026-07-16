@@ -1,0 +1,17 @@
+extends head_layout
+
+block nav_login
+  a(href='/login')
+    span.glyphicon.glyphicon-log-in(aria-hidden='true')
+    span.nav-label Sign in
+
+block body_content
+  main.auth-shell
+    .auth-backdrop
+    .auth-card
+      .auth-brand
+        span.brand-mark ZT
+        div
+          strong ZeroTier Planet
+          small Private Control Center
+      block login_content

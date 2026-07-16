@@ -1,0 +1,85 @@
+diff --git a/src/app.js b/src/app.js
+index b12f546..7d0fc30 100644
+--- a/src/app.js
++++ b/src/app.js
+@@ -21,7 +21,7 @@ const zt_controller = require('./routes/zt_controller');
+
+ const app = express();
+
+-const session_secret = Math.random().toString(36).substring(2,12);
++const session_secret = process.env.SESSION_SECRET || Math.random().toString(36).substring(2,12);
+
+ // view engine setup
+ app.set('views', path.join(__dirname, 'views'));
+@@ -28,7 +28,8 @@ app.set('view engine', 'pug');
+
+ app.use(helmet());
+ app.use(favicon(path.join(__dirname, 'public', 'favicon.ico')));
+-app.use(logger('dev'));
++app.use(logger('dev', { skip: req => req.path === '/healthz' }));
++app.get('/healthz', (req, res) => res.type('text').send('ok\n'));
+ app.use(bodyParser.json());
+ app.use(bodyParser.urlencoded({ extended: false }));
+ app.use(session({
+diff --git a/src/bin/www b/src/bin/www
+index 49127ad..8e31d43 100755
+--- a/src/bin/www
++++ b/src/bin/www
+@@ -40,8 +40,9 @@ app.set('https_host', https_host);
+  */
+
+ const http_all_interfaces = process.env.HTTP_ALL_INTERFACES || null;
+-if (http_all_interfaces) {
+-    console.log('Listening for HTTP requests on port ' + http_port + ' on all interfaces');
+-    app.listen(http_port);
++const http_host = process.env.HTTP_HOST || null;
++if (http_all_interfaces || http_host) {
++    console.log('Listening for HTTP requests on ' + (http_host || 'all interfaces') + ':' + http_port);
++    app.listen(http_port, http_host || undefined);
+ } else {
+     console.log('Listening for HTTP requests on port ' + http_port + ' on localhost');
+     app.listen(http_port, 'localhost');
+diff --git a/src/controllers/zt.js b/src/controllers/zt.js
+index d491287..3d23d6c 100644
+--- a/src/controllers/zt.js
++++ b/src/controllers/zt.js
+@@ -88,6 +88,10 @@ exports.network_detail = network_detail;
+
+ exports.network_create = async function(name) {
+   const options = await init_options();
++  const defaultMtu = Number.parseInt(process.env.DEFAULT_NETWORK_MTU || '1280', 10);
++  if (Number.isInteger(defaultMtu) && defaultMtu >= 1280 && defaultMtu <= 2800) {
++    name.mtu = defaultMtu;
++  }
+   options.method = 'POST';
+   options.body = name;
+
+diff --git a/src/package.json b/src/package.json
+index bea036c..a38ad13 100644
+--- a/src/package.json
++++ b/src/package.json
+@@ -7,7 +7,7 @@
+     "devstart": "nodemon ./bin/www"
+   },
+   "dependencies": {
+-    "argon2": "^0.19.3",
++    "argon2": "^0.41.1",
+     "body-parser": "^1.18.3",
+     "bootstrap": "^3.4.1",
+     "cookie-parser": "~1.4.3",
+@@ -20,11 +20,14 @@
+     "helmet": "^3.23.0",
+     "ip-address": "^5.8.9",
+     "jquery": "^3.6.1",
+-    "morgan": "~1.9.1",
++    "morgan": "^1.11.0",
+     "node-persist": "^2.1.0",
+     "pug": "^3.0.2",
+     "serve-favicon": "~2.5.0"
+   },
++  "overrides": {
++    "validator": "13.15.22"
++  },
+   "devDependencies": {
+     "nodemon": "^2.0.7"
+   },

@@ -1,0 +1,22 @@
+extends controller_layout
+
+block content
+  if error
+    .alert.alert-danger= error
+  else
+    .page-heading
+      div
+        span.eyebrow Network configuration
+        block network_title
+          h2
+            | Network
+            a(href='/controller/network/' + network.nwid)= network.name
+        block title
+          if title
+            p= title
+      if navigate && navigate.whence
+        a.btn.btn-default(href=navigate.whence role='button')
+          span.glyphicon.glyphicon-arrow-left(aria-hidden='true')
+          |  Back
+    .surface-card
+      block net_content

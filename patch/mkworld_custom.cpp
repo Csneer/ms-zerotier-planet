@@ -40,6 +40,7 @@
 #include <string>
 #include <vector>
 #include <algorithm>
+#include <chrono>
 
 #include <node/Constants.hpp>
 #include <node/World.hpp>
@@ -89,7 +90,34 @@ int jsonToBinary() {
 	std::vector<World::Root> roots;
 
 	const uint64_t id = ZT_WORLD_ID_EARTH;
-	const uint64_t ts = 1567191349589ULL; // August 30th, 2019
+	// World timestamps must increase whenever a planet is regenerated. A fixed
+	// timestamp can cause clients to keep an older signed world indefinitely.
+	uint64_t ts = static_cast<uint64_t>(
+		std::chrono::duration_cast<std::chrono::milliseconds>(
+			std::chrono::system_clock::now().time_since_epoch()).count());
+	std::string previousWorldContent;
+	if (OSUtils::readFile("world.bin.previous", previousWorldContent)) {
+		try {
+			Buffer<ZT_WORLD_MAX_SERIALIZED_LENGTH> previousWorldBuffer(previousWorldContent.data(), previousWorldContent.size());
+			World previousWorld;
+			if ((!previousWorld.deserialize(previousWorldBuffer, 0)) ||
+				(previousWorld.type() != World::TYPE_PLANET) ||
+				(previousWorld.id() != id)) {
+				fprintf(stderr, "FATAL: world.bin.previous is not the expected planet" ZT_EOL_S);
+				return 1;
+			}
+			if (previousWorld.timestamp() >= ts) {
+				if (previousWorld.timestamp() == UINT64_MAX) {
+					fprintf(stderr, "FATAL: previous world timestamp cannot be incremented" ZT_EOL_S);
+					return 1;
+				}
+				ts = previousWorld.timestamp() + 1;
+			}
+		} catch (...) {
+			fprintf(stderr, "FATAL: unable to deserialize world.bin.previous" ZT_EOL_S);
+			return 1;
+		}
+	}
 
 	std::string fileContent;
 	if (!OSUtils::readFile("moon.json", fileContent)) {
@@ -156,6 +184,10 @@ void binaryToJson() {
 
 	// Create a JSON object to store the world data
 	json worldJson;
+	worldJson["type"] = world.type() == World::TYPE_PLANET ? "planet" :
+		(world.type() == World::TYPE_MOON ? "moon" : "null");
+	worldJson["id"] = world.id();
+	worldJson["timestamp"] = world.timestamp();
 
 
 	// Add roots array to the JSON object

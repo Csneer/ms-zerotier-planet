@@ -1,0 +1,47 @@
+extends controller_layout
+
+block content
+  .page-heading
+    div
+      span.eyebrow Network management
+      h1 Networks
+      p Review and configure every network managed by this controller.
+    a.btn.btn-primary.btn-lg(href='/controller/network/create')
+      span.glyphicon.glyphicon-plus(aria-hidden='true')
+      |  New network
+
+  if error
+    .alert.alert-danger= error
+  else if !networks.length
+    .empty-state
+      span.glyphicon.glyphicon-globe
+      h3 No networks yet
+      p Create your first private network to begin connecting devices.
+      a.btn.btn-primary(href='/controller/network/create') Create network
+  else
+    .surface-card.table-card
+      .table-responsive
+        table.table.app-table
+          thead
+            tr
+              th Network
+              th Network ID
+              th.text-right Actions
+          tbody
+            each network in networks
+              - const nwurl = '/controller/network/' + network.nwid;
+              tr
+                td
+                  a.network-name(href=nwurl)
+                    span.network-avatar= (network.name || 'N').charAt(0).toUpperCase()
+                    span
+                      strong= network.name
+                      small Private virtual network
+                td
+                  code.network-id= network.nwid
+                td.text-right.table-actions
+                  a.btn.btn-default.btn-sm(href=nwurl + '#members') Members
+                  a.btn.btn-default.btn-sm(href=nwurl + '/easy') Easy setup
+                  a.btn.btn-primary.btn-sm(href=nwurl) Configure
+                  a.btn.btn-link.btn-sm.danger-link(href=nwurl + '/delete' title='Delete network')
+                    span.glyphicon.glyphicon-trash

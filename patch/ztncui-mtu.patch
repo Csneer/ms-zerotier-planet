@@ -1,0 +1,82 @@
+diff --git a/src/controllers/networkController.js b/src/controllers/networkController.js
+index ba72389..62a17dd 100644
+--- a/src/controllers/networkController.js
++++ b/src/controllers/networkController.js
+@@ -235,6 +235,52 @@ exports.name = async function(req, res) {
+   res.redirect('/controller/network/' + req.params.nwid);
+ };
+
++// MTU GET/POST. ZeroTier accepts 1280..2800 for virtual networks. Keeping
++// validation here prevents malformed values from reaching the controller API.
++exports.mtu_get = async function(req, res) {
++  const navigate = {
++    active: 'networks',
++    whence: '/controller/network/' + req.params.nwid
++  };
++
++  try {
++    const network = await zt.network_detail(req.params.nwid);
++    res.render('mtu', {title: 'MTU', navigate: navigate, network: network});
++  } catch (err) {
++    res.render('mtu', {title: 'MTU', navigate: navigate,
++      error: 'Error retrieving MTU for network ' + req.params.nwid + ': ' + err});
++  }
++};
++
++exports.mtu_post = async function(req, res) {
++  const navigate = {
++    active: 'networks',
++    whence: '/controller/network/' + req.params.nwid
++  };
++  const rawMtu = String(req.body.mtu === undefined ? '' : req.body.mtu).trim();
++  const mtu = Number(rawMtu);
++
++  try {
++    let network = await zt.network_detail(req.params.nwid);
++    if (!/^\d+$/.test(rawMtu) || !Number.isInteger(mtu) || mtu < 1280 || mtu > 2800) {
++      return res.status(400).render('mtu', {
++        title: 'MTU', navigate: navigate, network: network,
++        errors: [{msg: 'MTU must be a whole number between 1280 and 2800.'}],
++        submittedMtu: rawMtu
++      });
++    }
++
++    network = await zt.network_object(req.params.nwid, {mtu: mtu});
++    res.render('mtu', {
++      title: 'MTU', navigate: navigate, network: network,
++      success: 'MTU updated to ' + network.mtu + '. Online members will receive the new configuration automatically.'
++    });
++  } catch (err) {
++    res.status(502).render('mtu', {title: 'MTU', navigate: navigate,
++      error: 'Error applying MTU for network ' + req.params.nwid + ': ' + err});
++  }
++};
++
+ // ipAssignmentPools POST
+ exports.ipAssignmentPools = async function(req, res) {
+   const navigate =
+diff --git a/src/routes/zt_controller.js b/src/routes/zt_controller.js
+index c7db806..7bd3a19 100644
+--- a/src/routes/zt_controller.js
++++ b/src/routes/zt_controller.js
+@@ -31,5 +31,9 @@ router.post('/network/:nwid/delete', restrict, networkController.network_delete_
+ // POST request for Network name
+ router.post('/network/:nwid/name', restrict, networkController.name);
+
++// GET/POST requests for network MTU
++router.get('/network/:nwid/mtu', restrict, networkController.mtu_get);
++router.post('/network/:nwid/mtu', restrict, networkController.mtu_post);
++
+ // GET request for ipAssignmentPool delete
+ router.get('/network/:nwid/ipAssignmentPools/:ipRangeStart/:ipRangeEnd/delete', restrict, networkController.ipAssignmentPool_delete);
+diff --git a/src/views/network_detail.pug b/src/views/network_detail.pug
+index a75e838..1b3aef9 100644
+--- a/src/views/network_detail.pug
++++ b/src/views/network_detail.pug
+@@ -62,5 +62,6 @@ block net_content
+   a.btn.btn-primary(style="margin: 5px" href=(nwurl + '/v6AssignMode') role='button') IPv6 Assign Mode
+   a.btn.btn-primary(style="margin: 5px" href=(nwurl + '/dns') role='button') DNS
++  a.btn.btn-primary(style="margin: 5px" href=(nwurl + '/mtu') role='button') MTU (#{network.mtu})
+
+   if (members !== undefined)
+     script.

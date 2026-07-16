@@ -1,0 +1,45 @@
+//-
+  MTU editor added by docker-zerotier-planet optimized build.
+
+extends network_layout
+
+block net_content
+  if success
+    .alert.alert-success(role='alert')= success
+
+  if errors
+    .alert.alert-danger(role='alert')
+      ul(style='margin-bottom: 0;')
+        each err in errors
+          li= err.msg
+
+  .alert.alert-info(role='alert')
+    strong Recommended for Internet and game networks: 1280
+    p(style='margin: 8px 0 0;') A lower MTU avoids fragmentation and PMTU black holes on mobile networks, multi-layer NAT, PPPoE, and tunnels. Applying a new value can briefly reconfigure online members.
+
+  form(method='POST' action='')
+    .form-group
+      label(for='mtuInput') Network MTU (1280–2800)
+      input#mtuInput.form-control(
+        type='number'
+        name='mtu'
+        min='1280'
+        max='2800'
+        step='1'
+        required=true
+        value=(submittedMtu !== undefined ? submittedMtu : network.mtu)
+        style='max-width: 220px;'
+      )
+    .form-group
+      button.btn.btn-default.mtuPreset(type='button' data-mtu='1280' style='margin-right: 8px;') 1280 (Recommended)
+      button.btn.btn-default.mtuPreset(type='button' data-mtu='1400' style='margin-right: 8px;') 1400
+      button.btn.btn-default.mtuPreset(type='button' data-mtu='2800') 2800 (Default)
+    button.btn.btn-primary(type='submit') Save MTU
+    a.btn.btn-default(href='/controller/network/' + network.nwid style='margin-left: 8px;') Cancel
+
+  script.
+    $(function() {
+      $('.mtuPreset').on('click', function() {
+        $('#mtuInput').val($(this).data('mtu')).focus();
+      });
+    });

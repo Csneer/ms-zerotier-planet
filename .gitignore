@@ -1,4 +1,9 @@
-.idea
-/data
+.env
+.idea/
+.vscode/
 .DS_Store
-.vscode
+data/
+backups/
+*.log
+*.tar
+*.tar.gz

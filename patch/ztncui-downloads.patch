@@ -1,0 +1,32 @@
+diff --git a/src/routes/zt_controller.js b/src/routes/zt_controller.js
+index c7db806..709eff8 100644
+--- a/src/routes/zt_controller.js
++++ b/src/routes/zt_controller.js
+@@ -10,10 +10,15 @@ const router = express.Router();
+
+ var networkController = require('../controllers/networkController');
++const downloadsController = require('../controllers/downloadsController');
+
+ // network routes //
+
+ // GET ZT network controller home page
+ router.get('/', restrict, networkController.index);
++
++// Authenticated downloads for generated Planet and Moon files
++router.get('/downloads', restrict, downloadsController.index);
++router.get('/downloads/:filename', restrict, downloadsController.download);
+
+ // Get request for creating a network
+ router.get('/network/create', restrict, networkController.network_create_get);
+diff --git a/src/views/controller_layout.pug b/src/views/controller_layout.pug
+index 3f38316..8d4b873 100644
+--- a/src/views/controller_layout.pug
++++ b/src/views/controller_layout.pug
+@@ -10,6 +10,7 @@ block nav_items
+   +nav_item('users', 'Users', '/users')
+   +nav_item('networks', 'Networks', '/controller/networks')
+   +nav_item('add_network', 'Add network', '/controller/network/create')
++  +nav_item('downloads', 'Downloads', '/controller/downloads')
+
+ block body_content
+   .container(style='margin: 50px auto 20px')
