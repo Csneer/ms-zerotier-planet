@@ -23,7 +23,7 @@ RUN cd /src/ZeroTierOne/attic/world \
     && ./build.sh \
     && strip mkworld
 
-FROM node:20-bookworm-slim AS ztncui-builder
+FROM node:26-bookworm-slim AS ztncui-builder
 ARG ZTNCUI_COMMIT
 ARG DEBIAN_MIRROR
 WORKDIR /opt
@@ -62,7 +62,7 @@ COPY patch/login_layout.pug /opt/ztncui/src/views/login_layout.pug
 COPY patch/login.pug /opt/ztncui/src/views/login.pug
 COPY patch/front_door.pug /opt/ztncui/src/views/front_door.pug
 
-FROM node:20-bookworm-slim
+FROM node:26-bookworm-slim
 ARG ZT_VERSION
 ARG DEBIAN_MIRROR
 ARG SOURCE_REPOSITORY
