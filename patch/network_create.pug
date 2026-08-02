@@ -1,0 +1,28 @@
+extends controller_layout
+
+block content
+  .page-heading
+    div
+      span.eyebrow= t('network.create_eyebrow')
+      h1= t('network.create_title')
+      p= t('network.create_description')
+    a.btn.btn-default(href='/controller/networks')
+      span.glyphicon.glyphicon-arrow-left(aria-hidden='true')
+      |  #{t('common.back')}
+
+  if error
+    .alert.alert-danger= error
+  else
+    section.surface-card.form-card
+      if errors
+        .alert.alert-danger
+          ul.compact-list
+            each err in errors
+              li= localize_error(err.msg)
+      form(method='POST' action='')
+        .form-group
+          label(for='name')= t('network.name')
+          input#name.form-control(type='text' name='name' placeholder=t('network.name_placeholder') value=(name === undefined ? '' : name.name) required=true autofocus=true)
+        .form-actions
+          button.btn.btn-primary(type='submit')= t('network.create_button')
+          a.btn.btn-default(href='/controller/networks')= t('common.cancel')

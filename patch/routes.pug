@@ -1,0 +1,46 @@
+extends network_layout
+
+block net_content
+  section.surface-card.table-card.settings-card
+    .card-heading.card-heading-padded
+      div
+        h2= t('routes.title')
+        p= t('routes.description')
+    .table-responsive
+      table.table.app-table
+        thead
+          tr
+            th= t('routes.target')
+            th= t('routes.gateway')
+            th.text-right= t('common.actions')
+        tbody
+          if network.routes && network.routes.length
+            each item in network.routes
+              tr
+                td
+                  code= item.target
+                td= item.via || t('routes.direct')
+                td.text-right
+                  a.btn.btn-link.btn-sm.danger-link(href='/controller/network/' + network.nwid + '/routes/' + item.target + '/delete' title=t('common.delete'))
+                    span.glyphicon.glyphicon-trash(aria-hidden='true')
+          else
+            tr
+              td.empty-table-cell(colspan='3')= t('routes.empty')
+    .settings-form
+      h3= t('routes.add')
+      if errors
+        .alert.alert-danger
+          ul.compact-list
+            each err in errors
+              li= localize_error(err.msg)
+      form(method='POST' action='/controller/network/' + network.nwid + '/routes')
+        .form-row
+          .form-group
+            label(for='target')= t('routes.target')
+            input#target.form-control(type='text' name='target' placeholder='10.11.12.0/24' value=(route === undefined ? '' : route.target))
+          .form-group
+            label(for='via')= t('routes.gateway')
+            input#via.form-control(type='text' name='via' placeholder=t('routes.gateway_placeholder') value=(route === undefined ? '' : route.via))
+        .form-actions
+          button.btn.btn-primary(type='submit')= t('routes.add')
+          a.btn.btn-default(href='/controller/network/' + network.nwid)= t('common.cancel')

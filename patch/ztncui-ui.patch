@@ -1,0 +1,128 @@
+diff --git a/src/app.js b/src/app.js
+--- a/src/app.js
++++ b/src/app.js
+@@ -19,6 +19,7 @@ const helmet = require('helmet');
+ const index = require('./routes/index');
+ const users = require('./routes/users');
+ const zt_controller = require('./routes/zt_controller');
++const uiLanguage = require('./uiLanguage');
+
+ const app = express();
+
+@@ -41,6 +42,7 @@ app.use(session({
+ }));
+ app.use(expressValidator());
+ app.use(cookieParser());
++app.use(uiLanguage);
+ app.use(express.static(path.join(__dirname, 'public')));
+ app.use('/fonts', express.static(path.join(__dirname, 'node_modules/bootstrap/fonts')));
+ app.use('/bscss', express.static(path.join(__dirname, 'node_modules/bootstrap/dist/css')));
+diff --git a/src/controllers/networkController.js b/src/controllers/networkController.js
+--- a/src/controllers/networkController.js
++++ b/src/controllers/networkController.js
+@@ -59,6 +59,50 @@ async function get_network_member(nwid, memberid) {
+   return {network, member};
+ }
+
++function managedMemberIds(memberResponse) {
++  const ids = new Set();
++  if (Array.isArray(memberResponse)) {
++    for (const item of memberResponse) {
++      if (item && typeof item === 'object') {
++        for (const id of Object.keys(item)) {
++          if (/^[0-9a-f]{10}$/i.test(id)) ids.add(id.toLowerCase());
++        }
++      }
++    }
++  } else if (memberResponse && typeof memberResponse === 'object') {
++    for (const id of Object.keys(memberResponse)) {
++      if (/^[0-9a-f]{10}$/i.test(id)) ids.add(id.toLowerCase());
++    }
++  }
++  return ids;
++}
++
++function peerIsOnline(peer) {
++  return Boolean(peer) && Number(peer.latency) >= 0 &&
++    (peer.versionMajor === undefined || peer.versionMajor !== -1);
++}
++
++async function get_dashboard_stats() {
++  const [networks, peers] = await Promise.all([
++    zt.network_list(),
++    zt.peers()
++  ]);
++  const memberResponses = await Promise.all(
++    networks.map(network => zt.members(network.nwid))
++  );
++  const memberIds = new Set();
++  for (const response of memberResponses) {
++    for (const id of managedMemberIds(response)) memberIds.add(id);
++  }
++  const peerByAddress = new Map(
++    (Array.isArray(peers) ? peers : []).map(peer => [String(peer.address).toLowerCase(), peer])
++  );
++  const onlineMemberCount = [...memberIds]
++    .filter(id => peerIsOnline(peerByAddress.get(id))).length;
++  return {available: true, networkCount: networks.length,
++    memberCount: memberIds.size, onlineMemberCount: onlineMemberCount};
++}
++
+ // ZT network controller home page
+ exports.index = async function(req, res) {
+   const navigate =
+@@ -67,8 +111,16 @@ exports.index = async function(req, res) {
+     }
+
+   try {
+     const zt_status = await zt.get_zt_status();
+-    res.render('index', {title: 'ztncui', navigate: navigate, zt_status});
++    let dashboard_stats = {available: false, networkCount: 0,
++      memberCount: 0, onlineMemberCount: 0};
++    try {
++      dashboard_stats = await get_dashboard_stats();
++    } catch (statsError) {
++      console.error('Unable to collect dashboard member statistics', statsError);
++    }
++    res.render('index', {title: 'ztncui', navigate: navigate,
++      zt_status: zt_status, dashboard_stats: dashboard_stats});
+   } catch (err) {
+     res.render('index', {title: 'ztncui',
+                       navigate: navigate, error: 'ERROR getting ZT status: ' + err});
+@@ -651,9 +703,11 @@ exports.easy_post = async function(req, res) {
+     };
+
+   if (errors) {
+-    network =
++    const network =
+       {
++        nwid: req.params.nwid,
++        name: '',
+         ipAssignmentPools: ipAssignmentPools,
+         routes: routes,
+         v4AssignMode: v4AssignMode
+       };
+diff --git a/src/controllers/usersController.js b/src/controllers/usersController.js
+--- a/src/controllers/usersController.js
++++ b/src/controllers/usersController.js
+@@ -168,7 +168,7 @@ exports.user_delete = async function(req, res) {
+   const user = users[req.params.name];
+
+   if (user && (req.session.user.name === user.name)) {
+-    res.render('user_delete', { title: 'Delete user', navigate: navigate, user: user, self_delete: true });
++    return res.render('user_delete', { title: 'Delete user', navigate: navigate, user: user, self_delete: true });
+   }
+
+   if (req.body.delete === 'delete') {
+diff --git a/src/controllers/zt.js b/src/controllers/zt.js
+--- a/src/controllers/zt.js
++++ b/src/controllers/zt.js
+@@ -64,7 +64,7 @@ exports.network_list = async function() {
+     try {
+       const response = await got(ZT_ADDR + '/controller/network/'
+                                                               + nwid, options);
+-      network = (({name, nwid}) => ({name, nwid}))(response.body);
++      network = (({name, nwid, private: isPrivate}) => ({name, nwid, private: isPrivate}))(response.body);
+       networks.push(network);
+     } catch(err) {
+       throw(err);

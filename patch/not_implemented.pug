@@ -1,0 +1,9 @@
+extends network_layout
+
+block net_content
+  section.surface-card.confirm-card
+    .confirm-icon
+      span.glyphicon.glyphicon-wrench(aria-hidden='true')
+    h2= t('not_implemented.title')
+    p= t('not_implemented.description')
+    a.btn.btn-primary(href='/controller/network/' + network.nwid)= t('common.back')

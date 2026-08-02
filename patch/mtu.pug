@@ -4,38 +4,43 @@
 extends network_layout
 
 block net_content
-  if success
-    .alert.alert-success(role='alert')= success
+  section.surface-card.form-card
+    .card-heading
+      div
+        h2= t('mtu.title')
+        p= t('mtu.description')
 
-  if errors
-    .alert.alert-danger(role='alert')
-      ul(style='margin-bottom: 0;')
-        each err in errors
-          li= err.msg
+    if success
+      .alert.alert-success(role='alert')= t('mtu.updated', {value: network.mtu})
 
-  .alert.alert-info(role='alert')
-    strong Recommended for Internet and game networks: 1280
-    p(style='margin: 8px 0 0;') A lower MTU avoids fragmentation and PMTU black holes on mobile networks, multi-layer NAT, PPPoE, and tunnels. Applying a new value can briefly reconfigure online members.
+    if errors
+      .alert.alert-danger(role='alert')
+        ul.compact-list
+          each err in errors
+            li= localize_error(err.msg)
 
-  form(method='POST' action='')
-    .form-group
-      label(for='mtuInput') Network MTU (1280–2800)
-      input#mtuInput.form-control(
-        type='number'
-        name='mtu'
-        min='1280'
-        max='2800'
-        step='1'
-        required=true
-        value=(submittedMtu !== undefined ? submittedMtu : network.mtu)
-        style='max-width: 220px;'
-      )
-    .form-group
-      button.btn.btn-default.mtuPreset(type='button' data-mtu='1280' style='margin-right: 8px;') 1280 (Recommended)
-      button.btn.btn-default.mtuPreset(type='button' data-mtu='1400' style='margin-right: 8px;') 1400
-      button.btn.btn-default.mtuPreset(type='button' data-mtu='2800') 2800 (Default)
-    button.btn.btn-primary(type='submit') Save MTU
-    a.btn.btn-default(href='/controller/network/' + network.nwid style='margin-left: 8px;') Cancel
+    .alert.alert-info(role='alert')
+      strong= t('mtu.recommendation')
+
+    form(method='POST' action='')
+      .form-group
+        label(for='mtuInput')= t('mtu.range')
+        input#mtuInput.form-control.form-control-narrow(
+          type='number'
+          name='mtu'
+          min='1280'
+          max='2800'
+          step='1'
+          required=true
+          value=(submittedMtu !== undefined ? submittedMtu : network.mtu)
+        )
+      .form-group.button-row
+        button.btn.btn-default.mtuPreset(type='button' data-mtu='1280') 1280 (#{t('mtu.recommended')})
+        button.btn.btn-default.mtuPreset(type='button' data-mtu='1400') 1400
+        button.btn.btn-default.mtuPreset(type='button' data-mtu='2800') 2800 (#{t('mtu.default')})
+      .form-actions
+        button.btn.btn-primary(type='submit')= t('mtu.save')
+        a.btn.btn-default(href='/controller/network/' + network.nwid)= t('common.cancel')
 
   script.
     $(function() {

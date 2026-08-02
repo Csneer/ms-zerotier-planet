@@ -296,16 +296,12 @@ cmd_doctor() {
     ip6=$(config_value ".services.${SERVICE}.environment.IP_ADDR6")
     [[ -z "$ip6" ]] || valid_ipv6 "$ip6" || die "IP_ADDR6 is invalid: $ip6"
     [[ "$(config_value ".services.${SERVICE}.network_mode")" == host ]] || die 'network_mode must remain host for the optimized deployment'
-    for key in ZT_PORT API_PORT FILE_SERVER_PORT; do
+    for key in ZT_PORT API_PORT; do
         value=$(config_value ".services.${SERVICE}.environment.${key}")
         valid_port "$value" || die "$key must be an integer between 1 and 65535"
     done
     [[ "$(config_value ".services.${SERVICE}.environment.ZT_PORT")" \
         != "$(config_value ".services.${SERVICE}.environment.API_PORT")" ]] || die 'ZT_PORT and API_PORT must be different'
-    [[ "$(config_value ".services.${SERVICE}.environment.ZT_PORT")" \
-        != "$(config_value ".services.${SERVICE}.environment.FILE_SERVER_PORT")" ]] || die 'ZT_PORT and FILE_SERVER_PORT must be different'
-    [[ "$(config_value ".services.${SERVICE}.environment.API_PORT")" \
-        != "$(config_value ".services.${SERVICE}.environment.FILE_SERVER_PORT")" ]] || die 'API_PORT and FILE_SERVER_PORT must be different'
     value=$(config_value ".services.${SERVICE}.environment.DEFAULT_NETWORK_MTU")
     if [[ ! "$value" =~ ^[0-9]+$ ]] || ((10#$value < 1280 || 10#$value > 2800)); then
         die 'DEFAULT_NETWORK_MTU must be between 1280 and 2800'

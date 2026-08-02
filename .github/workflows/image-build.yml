@@ -60,8 +60,7 @@ jobs:
           cp .env.example .env
           sed -i 's/IP_ADDR4=203.0.113.10/IP_ADDR4=198.51.100.10/' .env
           bash -n build.sh deploy.sh install.sh manage.sh uninstall.sh patch/entrypoint.sh patch/healthcheck.sh
-          node --check patch/http_server.js
-          node --check patch/downloadsController.js
+          for source in patch/*.js; do node --check "$source"; done
           docker compose config --quiet
 
   image:

@@ -78,6 +78,15 @@ generate_planet() {
     log "Private planet generated (${reason}) with $(jq 'length' <<<"$endpoints") stable endpoint(s)"
 }
 
+activate_private_planet() {
+    [[ -s "${DIST_PATH}/planet" ]] || die 'Generated private planet is missing'
+    if [[ ! -s "${ZEROTIER_PATH}/planet" ]] \
+      || ! cmp -s "${DIST_PATH}/planet" "${ZEROTIER_PATH}/planet"; then
+        install -m 0644 "${DIST_PATH}/planet" "${ZEROTIER_PATH}/planet"
+        log 'Activated the generated private planet for the local root service'
+    fi
+}
+
 init_zerotier() {
     log 'Initializing ZeroTier identity and private planet'
     cp -an /bak/zerotier-one/. "${ZEROTIER_PATH}/"
@@ -107,7 +116,7 @@ init_ztncui_state() {
 shutdown() {
     trap - INT TERM EXIT
     log 'Stopping services'
-    for pid in "${UI_PID:-}" "${FILE_PID:-}" "${ZT_PID:-}"; do
+    for pid in "${UI_PID:-}" "${ZT_PID:-}"; do
         [[ -z "$pid" ]] || kill "$pid" 2>/dev/null || true
     done
     wait 2>/dev/null || true
@@ -121,14 +130,10 @@ PREVIOUS_IP_ADDR6="$(read_config ip_addr6)"
 ZT_PORT="${ZT_PORT:-${PREVIOUS_ZT_PORT:-9994}}"
 API_PORT="${API_PORT:-$(read_config ztncui.port)}"
 API_PORT="${API_PORT:-3443}"
-FILE_SERVER_PORT="${FILE_SERVER_PORT:-$(read_config file_server.port)}"
-FILE_SERVER_PORT="${FILE_SERVER_PORT:-3000}"
 validate_port ZT_PORT "$ZT_PORT"
 validate_port API_PORT "$API_PORT"
-validate_port FILE_SERVER_PORT "$FILE_SERVER_PORT"
 write_config zerotier-one.port "$ZT_PORT"
 write_config ztncui.port "$API_PORT"
-write_config file_server.port "$FILE_SERVER_PORT"
 
 IP_ADDR4="${IP_ADDR4:-${PREVIOUS_IP_ADDR4:-$(discover_ip https://ipv4.icanhazip.com/)}}"
 if [[ -z "${IP_ADDR6+x}" ]]; then
@@ -153,6 +158,7 @@ if ((FRESH_IDENTITY == 0)) && [[ ! -s "${DIST_PATH}/planet" \
     [[ -s "${ZEROTIER_PATH}/moon.json" ]] || zerotier-idtool initmoon "${ZEROTIER_PATH}/identity.public" > "${ZEROTIER_PATH}/moon.json"
     generate_planet endpoint-change
 fi
+activate_private_planet
 
 # Host networking avoids Docker's userland proxy/NAT on the hot UDP path. Do
 # not let a planet accidentally select Docker or ZeroTier virtual interfaces
@@ -162,13 +168,20 @@ if [[ ! -e "${ZEROTIER_PATH}/local.conf" && "${AUTO_TUNE_LOCAL_CONF:-1}" == 1 ]]
         primaryPort:$port,
         portMappingEnabled:false,
         softwareUpdate:"disable",
-        interfacePrefixBlacklist:["zt","docker","br-","veth"]
+        interfacePrefixBlacklist:["zt","docker","br-","veth"],
+        enableMetrics:true
     }}' > "${ZEROTIER_PATH}/local.conf"
     chmod 0600 "${ZEROTIER_PATH}/local.conf"
-elif [[ "${AUTO_TUNE_LOCAL_CONF:-1}" == 1 ]] \
-     && jq -e '.settings.portMappingEnabled == false and (.settings.interfacePrefixBlacklist | type == "array")' \
-        "${ZEROTIER_PATH}/local.conf" >/dev/null 2>&1; then
-    jq --argjson port "$ZT_PORT" '.settings.primaryPort = $port' \
+elif [[ "${AUTO_TUNE_LOCAL_CONF:-1}" == 1 ]]; then
+    jq --argjson port "$ZT_PORT" '
+        .settings = (.settings // {})
+        | .settings.primaryPort = $port
+        | .settings.portMappingEnabled = false
+        | .settings.softwareUpdate = "disable"
+        | .settings.enableMetrics = true
+        | .settings.interfacePrefixBlacklist =
+            (((.settings.interfacePrefixBlacklist // []) + ["zt","docker","br-","veth"]) | unique)
+    ' \
         "${ZEROTIER_PATH}/local.conf" > "${ZEROTIER_PATH}/local.conf.tmp"
     mv "${ZEROTIER_PATH}/local.conf.tmp" "${ZEROTIER_PATH}/local.conf"
     chmod 0600 "${ZEROTIER_PATH}/local.conf"
@@ -183,16 +196,17 @@ chmod 0600 "${CONFIG_PATH}/session.secret"
 
 cat > "${ZTNCUI_PATH}/.env" <<EOF
 HTTP_PORT=${API_PORT}
-HTTP_HOST=${HTTP_HOST:-0.0.0.0}
+HTTP_HOST=${HTTP_HOST:-127.0.0.1}
 NODE_ENV=production
 ZT_ADDR=http://127.0.0.1:${ZT_PORT}
 ZT_TOKEN=${TOKEN}
 SESSION_SECRET=$(cat "${CONFIG_PATH}/session.secret")
 DEFAULT_NETWORK_MTU=${DEFAULT_NETWORK_MTU:-1280}
+ZT_PROBE_ADDR=${ZT_PROBE_ADDR:-http://127.0.0.1:9993}
+ZT_PROBE_TOKEN_FILE=${ZT_PROBE_TOKEN_FILE:-/run/zerotier-probe/authtoken.secret}
 EOF
 chmod 0600 "${ZTNCUI_PATH}/.env"
 
-export FILE_SERVER_PORT
 log "Starting ZeroTier $(zerotier-one -v) on UDP/TCP ${ZT_PORT}"
 zerotier-one -p"${ZT_PORT}" "$ZEROTIER_PATH" &
 ZT_PID=$!
@@ -207,11 +221,9 @@ done
 curl -fsS --max-time 2 -H "X-ZT1-Auth: ${TOKEN}" "http://127.0.0.1:${ZT_PORT}/status" >/dev/null \
     || die 'ZeroTier management API did not become ready'
 
-node /opt/planet-file-server/http_server.js &
-FILE_PID=$!
 (cd "$ZTNCUI_PATH" && exec node ./bin/www) &
 UI_PID=$!
-log "Services ready: controller=${API_PORT}/tcp files=${FILE_SERVER_PORT}/tcp default-mtu=${DEFAULT_NETWORK_MTU:-1280}"
+log "Services ready: controller=${API_PORT}/tcp default-mtu=${DEFAULT_NETWORK_MTU:-1280}"
 
-wait -n "$ZT_PID" "$FILE_PID" "$UI_PID"
+wait -n "$ZT_PID" "$UI_PID"
 die 'A managed service exited unexpectedly'

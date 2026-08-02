@@ -3,30 +3,30 @@ extends controller_layout
 block content
   .page-heading
     div
-      span.eyebrow Network management
-      h1 Networks
-      p Review and configure every network managed by this controller.
+      span.eyebrow= t('networks.eyebrow')
+      h1= t('networks.title')
+      p= t('networks.description')
     a.btn.btn-primary.btn-lg(href='/controller/network/create')
       span.glyphicon.glyphicon-plus(aria-hidden='true')
-      |  New network
+      |  #{t('nav.new_network')}
 
   if error
     .alert.alert-danger= error
   else if !networks.length
     .empty-state
       span.glyphicon.glyphicon-globe
-      h3 No networks yet
-      p Create your first private network to begin connecting devices.
-      a.btn.btn-primary(href='/controller/network/create') Create network
+      h3= t('networks.empty_title')
+      p= t('networks.empty_description')
+      a.btn.btn-primary(href='/controller/network/create')= t('network.create_button')
   else
     .surface-card.table-card
       .table-responsive
         table.table.app-table
           thead
             tr
-              th Network
-              th Network ID
-              th.text-right Actions
+              th= t('networks.network')
+              th= t('networks.network_id')
+              th.text-right= t('common.actions')
           tbody
             each network in networks
               - const nwurl = '/controller/network/' + network.nwid;
@@ -36,12 +36,12 @@ block content
                     span.network-avatar= (network.name || 'N').charAt(0).toUpperCase()
                     span
                       strong= network.name
-                      small Private virtual network
+                      small= network.private === false ? t('networks.public_virtual') : t('networks.private_virtual')
                 td
                   code.network-id= network.nwid
                 td.text-right.table-actions
-                  a.btn.btn-default.btn-sm(href=nwurl + '#members') Members
-                  a.btn.btn-default.btn-sm(href=nwurl + '/easy') Easy setup
-                  a.btn.btn-primary.btn-sm(href=nwurl) Configure
-                  a.btn.btn-link.btn-sm.danger-link(href=nwurl + '/delete' title='Delete network')
+                  a.btn.btn-default.btn-sm(href=nwurl + '#members')= t('networks.members')
+                  a.btn.btn-default.btn-sm(href=nwurl + '/easy')= t('networks.easy_setup')
+                  a.btn.btn-primary.btn-sm(href=nwurl)= t('networks.configure')
+                  a.btn.btn-link.btn-sm.danger-link(href=nwurl + '/delete' title=t('networks.delete_title'))
                     span.glyphicon.glyphicon-trash

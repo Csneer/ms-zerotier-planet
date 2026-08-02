@@ -13,7 +13,8 @@
 - 新建网络默认 MTU `1280`，已有网络可在 Web 中修改 `1280–2800`。
 - 响应式 Web 仪表盘，集中管理网络、成员、MTU、用户和配置下载。
 - 登录后直接下载 `planet` 和 `.moon` 文件，并显示 SHA-256。
-- identity、Controller 数据、Web 用户、session key 和下载 key 全部持久化。
+- identity、Controller 数据、Web 用户和 session key 全部持久化。
+- 内置连接监控区分 Planet 服务器视角与可选本机探针视角，并展示 ZeroTier 流量指标。
 - 联合健康检查、进程监管、优雅退出和 Docker 日志轮转。
 - IP 或 ZeroTier 端口变化时保留 identity 与世界签名密钥，只重新签发 planet/moon。
 - 安装、升级、备份、恢复和卸载均使用非破坏性脚本；危险操作需要显式 `--yes`。
@@ -34,7 +35,8 @@
 |---:|---|---|---|
 | 9994 | UDP/TCP | ZeroTier Planet/Controller | 公网；UDP 必须放行 |
 | 3443 | TCP | Web 管理控制台 | 仅可信 IP、ZeroTier 网段或本机反代 |
-| 3000 | TCP | 带 key 的兼容下载服务 | 通常无需公网开放，优先使用 Web 下载页 |
+
+旧的 `3000/tcp` 文件服务已删除。`planet` 和 `.moon` 只通过登录后的 Web `Downloads` 页面分发。
 
 脚本不会自动安装 Docker、修改内核、改防火墙或写 `/etc/docker/daemon.json`。这些主机级操作不应由应用安装脚本静默执行。
 
@@ -79,11 +81,13 @@ cd ms-zerotier-planet
 - 不会自动拉取任何第三方 `latest` 镜像。
 - 新部署默认管理员是 `admin/password`，首次登录后必须立即修改。
 
-管理地址默认为：
+Web 默认只监听本机：
 
 ```text
-http://<服务器IP>:3443
+http://127.0.0.1:3443
 ```
+
+如果需要从 ZeroTier 网络访问，把 `HTTP_HOST` 设置为服务器对应的 ZeroTier 地址，例如 `172.16.100.97`。当前版本不内置 HTTPS；需要 HTTPS 时应在受信网络中增加反向代理。
 
 ## 配置
 
@@ -100,18 +104,33 @@ http://<服务器IP>:3443
 | `SOURCE_REPOSITORY` | 写入 OCI 标签的你自己的仓库 URL |
 | `DATA_DIR` | identity、Controller、配置和生成文件的持久化根目录 |
 | `ZTNCUI_STATE_DIR` | Web 用户与设备别名目录 |
+| `ZT_PROBE_STATE_DIR` | 可选本机 ZeroTier 客户端状态目录，只读挂载供连接监控读取 token |
 | `BACKUP_DIR` | 校验备份的保存目录 |
 | `CONTAINER_NAME` | 容器名；同机多实例时必须分别设置 |
 | `IP_ADDR4` / `IP_ADDR6` | planet 对外发布的稳定地址 |
 | `ZT_PORT` | ZeroTier 主端口，默认 `9994` |
 | `API_PORT` | Web 管理端口，默认 `3443` |
-| `FILE_SERVER_PORT` | 兼容下载服务端口，默认 `3000` |
 | `DEFAULT_NETWORK_MTU` | 新建网络默认 MTU，建议 `1280` |
-| `HTTP_HOST` | Web 监听地址；本机反代时建议 `127.0.0.1` |
+| `HTTP_HOST` | Web 监听地址，默认 `127.0.0.1`；也可绑定服务器的 ZeroTier 地址 |
+| `ZT_PROBE_ADDR` | 可选探针的本地 ZeroTier API，默认 `http://127.0.0.1:9993` |
 
 修改 `IP_ADDR4`、`IP_ADDR6` 或 `ZT_PORT` 后执行 `./manage.sh upgrade`。容器会保留原 identity 和 `.c25519` 签名密钥，生成时间戳更高的新 planet；客户端仍需重新下载并替换新的 `planet` 文件。
 
 建立自己的远程仓库后，请把 `SOURCE_REPOSITORY` 填为该仓库 URL；留空时 OCI source 标签也保持为空，不会冒充原上游发布物。
+
+## 连接状态与监控
+
+登录后进入“连接监控”可看到以下彼此独立的状态：
+
+- `Planet 可达`：Planet 服务器当前观测到该成员的有效路径。这只能说明成员与本服务器之间的状态。
+- `到 Planet 直连`：成员到 Planet 服务器有活动的物理路径，不代表成员与其他终端直连。
+- 探针 `DIRECT` / `RELAY` / `TCP RELAY`：服务器本机 ZeroTier 客户端到该成员的当前路径。探针只是一个观测点，不是所有终端的两两连接矩阵。
+- Planet 包速率与 UDP/TCP 流量：来自 ZeroTier 内置 Prometheus 指标，页面用相邻采样计算速率。
+- Planet 文件一致性与公共 Root 数量：运行中的 `planet` 应与下载页面分发的文件一致，私有 Root 正常运行时不应再连接公共 Root。
+
+若要启用探针视角，把主机 ZeroTier 客户端的数据目录配置为 `ZT_PROBE_STATE_DIR`。Compose 会只读挂载该目录，并通过 `ZT_PROBE_ADDR` 查询本机 API。目录为空或 API 不可达时，监控页会显示“探针不可用”，不会影响主服务。
+
+判断两台具体终端是否直连，仍应在其中一台终端运行 `zerotier-cli peers`，或结合实际端到端传输测试；中央控制器无法可靠推断任意终端对之间的实时路径。
 
 ## 日常维护
 
@@ -155,7 +174,7 @@ git pull --ff-only
 
 - `dist/`：planet 和 moon。
 - `one/`：ZeroTier identity、签名密钥和 Controller 数据。
-- `config/`：端口、地址、下载 key、session key。
+- `config/`：端口、地址和 session key。
 - `ztncui-state/`：Web 用户和设备别名。
 - `.env`、Compose 配置、容器信息与 `SHA256SUMS`。
 
@@ -240,7 +259,7 @@ git pull --ff-only
 
 - 不建议将 `3443/tcp` 直接暴露给整个公网；至少使用云安全组白名单。
 - 更推荐 `HTTP_HOST=127.0.0.1`，再由 Caddy/Nginx/Traefik 提供 HTTPS。
-- `3000/tcp` 是兼容接口；Web `Downloads` 已满足常规下载需求。
+- 需要通过 ZeroTier 网络直接管理时，可把 `HTTP_HOST` 绑定到服务器的 ZeroTier 地址；不要使用 `0.0.0.0`。
 - 不要提交 `.env`、`data/`、`backups/` 或任何 identity、`.c25519`、token 文件。
 - ztncui 上游已经停止积极维护；管理面应视为高权限内部服务。
 

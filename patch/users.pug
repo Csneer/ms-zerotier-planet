@@ -1,0 +1,26 @@
+extends users_layout
+
+block users_content
+  .table-responsive
+    table.table.app-table
+      thead
+        tr
+          th= t('users.username')
+          th= t('users.password_action')
+          th.text-right= t('common.actions')
+      tbody
+        if users && Object.keys(users).length
+          each user in users
+            tr
+              td
+                a.network-name(href='/users/' + user.name + '/password')
+                  span.network-avatar= user.name.charAt(0).toUpperCase()
+                  strong= user.name
+              td
+                a(href='/users/' + user.name + '/password')= t('users.set_password')
+              td.text-right
+                a.btn.btn-link.btn-sm.danger-link(href='/users/' + user.name + '/delete' title=t('common.delete'))
+                  span.glyphicon.glyphicon-trash(aria-hidden='true')
+        else
+          tr
+            td.empty-table-cell(colspan='3')= t('users.empty')

@@ -1,0 +1,28 @@
+extends network_layout
+
+block net_content
+  section.surface-card.confirm-card
+    if member.deleted
+      .confirm-icon.is-success
+        span.glyphicon.glyphicon-ok(aria-hidden='true')
+      h2= t('member.delete_success', {name: member.name || t('member.name'), id: member.id})
+      a.btn.btn-primary(href='/controller/network/' + network.nwid + '#members')= t('member.back')
+    else
+      .confirm-icon.is-danger
+        span.glyphicon.glyphicon-trash(aria-hidden='true')
+      h2= t('network.delete_member')
+      p= t('common.confirm_irreversible')
+      .alert.alert-info.text-left
+        ul.compact-list
+          li= t('member.delete_help_1')
+          li= t('member.delete_help_2')
+      form(method='POST' action='')
+        .form-actions.form-actions-center
+          button.btn.btn-danger(type='submit' name='delete')= t('member.delete_button', {name: member.name || t('member.name'), id: member.id})
+          a.btn.btn-default(href='/controller/network/' + network.nwid + '#members')= t('common.cancel')
+
+    if errors
+      .alert.alert-danger.text-left
+        ul.compact-list
+          each err in errors
+            li= localize_error(err.msg)

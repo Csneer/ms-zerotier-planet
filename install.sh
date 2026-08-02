@@ -4,6 +4,8 @@ set -Eeuo pipefail
 ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 ENV_FILE="$ROOT_DIR/.env"
 ENV_TMP=
+CREATED_ENV=0
+cd "$ROOT_DIR"
 
 cleanup() {
     [[ -z "$ENV_TMP" ]] || rm -f -- "$ENV_TMP"
@@ -146,9 +148,10 @@ else
         printf 'IP_ADDR6=%s\n' "$public_ipv6"
         printf 'ZT_PORT=%s\n' "${ZT_PORT:-9994}"
         printf 'API_PORT=%s\n' "${API_PORT:-3443}"
-        printf 'FILE_SERVER_PORT=%s\n' "${FILE_SERVER_PORT:-3000}"
         printf 'DEFAULT_NETWORK_MTU=%s\n' "${DEFAULT_NETWORK_MTU:-1280}"
-        printf 'HTTP_HOST=%s\n' "${HTTP_HOST:-0.0.0.0}"
+        printf 'HTTP_HOST=%s\n' "${HTTP_HOST:-127.0.0.1}"
+        printf 'ZT_PROBE_STATE_DIR=%s\n' "${ZT_PROBE_STATE_DIR:-${data_dir%/}/probe-state}"
+        printf 'ZT_PROBE_ADDR=%s\n' "${ZT_PROBE_ADDR:-http://127.0.0.1:9993}"
         printf 'TZ=%s\n' "${TZ:-Asia/Shanghai}"
     } >"$ENV_TMP"
     chmod 0600 "$ENV_TMP"
@@ -157,7 +160,17 @@ else
     fi
     rm -f -- "$ENV_TMP"
     ENV_TMP=
+    CREATED_ENV=1
     printf 'Created %s\n' "$ENV_FILE"
+fi
+
+if ((CREATED_ENV)); then
+    install -d -m 0700 \
+        "${data_dir%/}/dist" \
+        "${data_dir%/}/one" \
+        "${data_dir%/}/config" \
+        "${data_dir%/}/ztncui-state" \
+        "${data_dir%/}/probe-state"
 fi
 
 "$ROOT_DIR/manage.sh" doctor

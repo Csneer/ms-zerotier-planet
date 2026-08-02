@@ -1,0 +1,260 @@
+extends network_layout
+
+block network_title
+  h1.network-title-editor
+    a#change-name(href='#' title=t('network.rename'))
+      span#name= network.name || t('network.network')
+      span.glyphicon.glyphicon-pencil(aria-hidden='true')
+    input#name-input.form-control(type='text' aria-label=t('network.name'))
+  code.page-network-id= network.nwid
+  script.
+    $(function() {
+      var nwurl = '/controller/network/#{network.nwid}';
+      var name = !{JSON.stringify(network.name || '').replace(/</g, '\\u003c')};
+
+      function toggleNameEditor(show) {
+        $('#change-name').toggle(!show);
+        $('#name-input').toggle(show);
+      }
+
+      function submitName() {
+        var newName = $('#name-input').val().trim();
+        if (newName && newName !== name) {
+          $.post(nwurl + '/name', {name: newName})
+            .done(function() {
+              name = newName;
+              $('#name').text(newName);
+            });
+        }
+        toggleNameEditor(false);
+      }
+
+      $('#change-name').on('click', function(event) {
+        event.preventDefault();
+        toggleNameEditor(true);
+        $('#name-input').val(name).focus().select();
+      });
+      $('#name-input').on('blur', submitName).on('keydown', function(event) {
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          submitName();
+        } else if (event.key === 'Escape') {
+          toggleNameEditor(false);
+        }
+      });
+    });
+
+block net_content
+  - const nwurl = '/controller/network/' + network.nwid;
+  - const memberList = Array.isArray(members) ? members : [];
+  - const activePaths = function(peer) { return peer && Array.isArray(peer.paths) ? peer.paths.filter(function(path) { return path && path.active === true && path.expired !== true; }) : []; };
+  - const planetReachableCount = memberList.filter(function(member) { return member.peer && member.peer.role === 'LEAF' && activePaths(member.peer).length; }).length;
+  - const bridgeMemberCount = memberList.filter(function(member) { return Boolean(member.activeBridge); }).length;
+  - const formatAge = function(milliseconds) { if (!Number.isFinite(milliseconds)) return '—'; if (milliseconds < 1000) return '< 1s'; if (milliseconds < 60000) return Math.round(milliseconds / 1000) + 's'; if (milliseconds < 3600000) return Math.round(milliseconds / 60000) + 'm'; return Math.round(milliseconds / 3600000) + 'h'; };
+  - const routeCount = Array.isArray(network.routes) ? network.routes.length : 0;
+  - const poolCount = Array.isArray(network.ipAssignmentPools) ? network.ipAssignmentPools.length : 0;
+
+  section.surface-card.network-summary-card
+    .card-heading
+      div
+        h2= t('network.summary')
+    .network-summary-grid
+      .summary-item
+        span.summary-label= t('network.access')
+        strong
+          span.access-badge(class=network.private ? 'is-private' : 'is-public')= network.private ? t('network.private') : t('network.public')
+      .summary-item
+        span.summary-label MTU
+        strong= network.mtu
+      .summary-item
+        span.summary-label= t('network.member_total')
+        strong= memberList.length
+      .summary-item
+        span.summary-label= t('network.planet_reachable')
+        strong #{planetReachableCount} / #{memberList.length}
+      .summary-item
+        span.summary-label= t('network.routes')
+        strong= routeCount
+      .summary-item
+        span.summary-label= t('network.pools')
+        strong= poolCount
+
+  section.surface-card.config-section
+    .card-heading
+      div
+        h2= t('network.configuration')
+        p= t('network.configuration_hint')
+    .config-grid
+      a.config-card(href=nwurl + '/private')
+        span.config-icon.action-violet
+          span.glyphicon.glyphicon-lock
+        span
+          strong= t('network.access_control')
+          small= t('network.access_control_desc')
+        span.glyphicon.glyphicon-chevron-right.config-arrow
+      a.config-card(href=nwurl + '/easy')
+        span.config-icon.action-green
+          span.glyphicon.glyphicon-flash
+        span
+          strong= t('networks.easy_setup')
+          small= t('network.easy_desc')
+        span.glyphicon.glyphicon-chevron-right.config-arrow
+      a.config-card(href=nwurl + '/routes')
+        span.config-icon.action-blue
+          span.glyphicon.glyphicon-random
+        span
+          strong= t('network.routes')
+          small= t('network.routes_desc')
+        span.glyphicon.glyphicon-chevron-right.config-arrow
+      a.config-card(href=nwurl + '/ipAssignmentPools')
+        span.config-icon.action-cyan
+          span.glyphicon.glyphicon-tasks
+        span
+          strong= t('network.pools')
+          small= t('network.pools_desc')
+        span.glyphicon.glyphicon-chevron-right.config-arrow
+      a.config-card(href=nwurl + '/v4AssignMode')
+        span.config-icon.action-blue
+          span.glyphicon.glyphicon-sort-by-order
+        span
+          strong= t('network.ipv4_mode')
+          small= t('network.ipv4_mode_desc')
+        span.glyphicon.glyphicon-chevron-right.config-arrow
+      a.config-card(href=nwurl + '/v6AssignMode')
+        span.config-icon.action-violet
+          span.glyphicon.glyphicon-sort-by-order-alt
+        span
+          strong= t('network.ipv6_mode')
+          small= t('network.ipv6_mode_desc')
+        span.glyphicon.glyphicon-chevron-right.config-arrow
+      a.config-card(href=nwurl + '/dns')
+        span.config-icon.action-cyan
+          span.glyphicon.glyphicon-link
+        span
+          strong= t('network.dns')
+          small= t('network.dns_desc')
+        span.glyphicon.glyphicon-chevron-right.config-arrow
+      a.config-card(href=nwurl + '/mtu')
+        span.config-icon.action-green
+          span.glyphicon.glyphicon-resize-horizontal
+        span
+          strong MTU · #{network.mtu}
+          small= t('network.mtu_desc')
+        span.glyphicon.glyphicon-chevron-right.config-arrow
+
+  section#members.surface-card.table-card.member-section
+    .card-heading.card-heading-padded
+      div
+        h2 #{t('network.members_heading')} (#{memberList.length})
+        p= t('network.members_hint')
+      a.btn.btn-default.btn-sm(href='')
+        span.glyphicon.glyphicon-refresh(aria-hidden='true')
+        |  #{t('common.refresh')}
+
+    .member-scope-note
+      span.glyphicon.glyphicon-info-sign(aria-hidden='true')
+      span= t('network.planet_scope_note')
+    if bridgeMemberCount
+      .alert.alert-warning.member-bridge-warning
+        strong= t('network.bridge_warning', {count: bridgeMemberCount})
+        |  #{t('network.bridge_warning_desc')}
+
+    script.
+      $(function() {
+        var url = '#{nwurl}/members';
+        $('.authCheck, .bridgeCheck').on('change', function() {
+          var checkbox = this;
+          var payload = {id: checkbox.value};
+          payload[$(checkbox).hasClass('authCheck') ? 'auth' : 'activeBridge'] = checkbox.checked;
+          $(checkbox).prop('disabled', true);
+          $.post(url, payload)
+            .fail(function() { checkbox.checked = !checkbox.checked; })
+            .always(function() { $(checkbox).prop('disabled', false); });
+        });
+        $('.member-name-input').on('change', function() {
+          $.post(url, {id: this.name, name: this.value});
+        });
+      });
+
+    .table-responsive
+      table.table.app-table.member-table
+        thead
+          tr
+            th= t('network.status')
+            th= t('network.device')
+            th.member-ip-column= t('network.ip_assignment')
+            th.text-center= t('network.authorized')
+            th.text-center.member-bridge-column= t('network.bridge')
+            th.member-connection-column= t('network.planet_path')
+            th.text-right= t('common.actions')
+        tbody
+          if memberList.length
+            each member in memberList
+              - const peer = member.peer;
+              - const memberUrl = nwurl + '/member/' + member.id;
+              - const paths = activePaths(peer);
+              - const isPlanetReachable = peer && peer.role === 'LEAF' && paths.length > 0;
+              - const isController = member.id === zt_address;
+              - const preferredPath = paths.find(function(path) { return path.preferred === true; }) || paths[0];
+              - const activityTimes = paths.reduce(function(values, path) { if (Number(path.lastReceive) > 0) values.push(Number(path.lastReceive)); if (Number(path.lastSend) > 0) values.push(Number(path.lastSend)); return values; }, []);
+              - const lastActivityMs = activityTimes.length ? Math.max(0, Date.now() - Math.max.apply(Math, activityTimes)) : null;
+              tr
+                td
+                  if isPlanetReachable
+                    span.member-status.is-online
+                      span.status-dot
+                      | #{t('network.planet_reachable_short')}
+                    if peer.version
+                      small.member-version v#{peer.version}
+                  else if isController
+                    span.member-status.is-controller
+                      span.status-dot
+                      | #{t('network.controller')}
+                  else
+                    span.member-status.is-offline
+                      span.status-dot
+                      | #{t('network.planet_unreachable_short')}
+                td
+                  input.form-control.member-name-input(type='text' name=member.id value=member.name placeholder=t('member.name') aria-label=t('member.name'))
+                  a.member-id(href=memberUrl)= member.id
+                td.member-ip-column
+                  if member.ipAssignments && member.ipAssignments.length
+                    .ip-list
+                      each ipAssignment in member.ipAssignments
+                        code= ipAssignment
+                  else
+                    span.muted-text= t('network.no_ip')
+                  a.member-inline-action(href=memberUrl + '/ipAssignments')= t('network.edit_ip')
+                td.text-center
+                  label.switch-control(title=t('network.authorized'))
+                    input.authCheck(type='checkbox' value=member.id checked=Boolean(member.authorized))
+                    span.switch-slider
+                td.text-center.member-bridge-column
+                  label.switch-control(title=t('network.bridge'))
+                    input.bridgeCheck(type='checkbox' value=member.id checked=Boolean(member.activeBridge))
+                    span.switch-slider
+                td.member-connection-column
+                  if preferredPath && preferredPath.address
+                    code.connection-address= preferredPath.address
+                    if peer && Number(peer.latency) >= 0
+                      small.connection-latency #{peer.latency} ms
+                    if lastActivityMs !== null
+                      small.connection-latency= t('network.last_activity', {age: formatAge(lastActivityMs)})
+                  else
+                    span.muted-text= t('common.none')
+                td.text-right.member-actions
+                  a.btn.btn-default.btn-sm(href=memberUrl title=t('network.member_detail'))
+                    span.glyphicon.glyphicon-list-alt(aria-hidden='true')
+                  a.btn.btn-link.btn-sm.danger-link(href=memberUrl + '/delete' title=t('network.delete_member'))
+                    span.glyphicon.glyphicon-trash(aria-hidden='true')
+          else
+            tr
+              td.empty-table-cell(colspan='7')= t('network.no_members', {id: network.nwid})
+
+  details.surface-card.advanced-details
+    summary
+      span.glyphicon.glyphicon-console(aria-hidden='true')
+      span= t('common.advanced_data')
+    .advanced-details-body
+      p= t('common.raw_json_hint')
+      pre= JSON.stringify(network, null, 2)

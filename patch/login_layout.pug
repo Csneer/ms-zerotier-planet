@@ -3,7 +3,7 @@ extends head_layout
 block nav_login
   a(href='/login')
     span.glyphicon.glyphicon-log-in(aria-hidden='true')
-    span.nav-label Sign in
+    span.nav-label= t('nav.sign_in')
 
 block body_content
   main.auth-shell
@@ -13,5 +13,5 @@ block body_content
         span.brand-mark ZT
         div
           strong ZeroTier Planet
-          small Private Control Center
+          small= t('app.private_control_center')
       block login_content

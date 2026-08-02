@@ -1,0 +1,161 @@
+diff --git a/src/controllers/networkController.js b/src/controllers/networkController.js
+--- a/src/controllers/networkController.js
++++ b/src/controllers/networkController.js
+@@ -8,6 +8,7 @@ const fs = require('fs');
+ const ipaddr = require('ip-address');
+ const storage = require('node-persist');
+ const zt = require('./zt');
++const statusTools = require('../uiStatus');
+ const util = require('util');
+
+ storage.initSync({dir: 'etc/storage'});
+@@ -15,34 +16,30 @@ storage.initSync({dir: 'etc/storage'});
+ async function get_network_with_members(nwid) {
+-  const [network, peers, members] = await Promise.all([
++  const [network, peers, response] = await Promise.all([
+     zt.network_detail(nwid),
+     zt.peers(),
+-    zt.members(nwid)
+-      .then(member_ids => {
+-        // Fix weird data returned by ZeroTier 1.12
+-        if (Array.isArray(member_ids)) {
+-          let obj = {};
+-          for (let id of member_ids) {
+-            let key = Object.keys(id)[0];
+-            let value = Object.values(id)[0];
+-            obj[key] = value;
+-          }
+-          member_ids = obj;
+-        }
+-
+-        return Promise.all(
+-          Object.keys(member_ids)
+-            .map(id => Promise.all([
+-              zt.member_detail(nwid, id),
+-              storage.getItem(id)
+-            ]))
+-        );
+-      }).then(results => results.map(([member, name]) => {
+-        member.name = name || '';
+-        return member;
+-      }))
++    zt.members(nwid)
+   ]);
++  const ids = [...statusTools.managedMemberIds(response)];
++  const members = [];
++
++  // The embedded ZeroTier API handles only a small number of concurrent
++  // keep-alive requests. More than eight parallel member lookups wait for its
++  // four-second timeout, while the same local calls complete almost instantly
++  // in sequence.
++  for (const id of ids) {
++    const [member, name] = await Promise.all([
++      zt.member_detail(nwid, id),
++      storage.getItem(id)
++    ]);
++    member.name = name || '';
++    members.push(member);
++  }
++
++  const peerByAddress = new Map(
++    (Array.isArray(peers) ? peers : []).map(peer => [String(peer.address).toLowerCase(), peer])
++  );
+   for (const member of members) {
+-    member.peer = peers.find(x => x.address === member.address);
++    member.peer = peerByAddress.get(String(member.address).toLowerCase());
+   }
+   return {network, members};
+ }
+@@ -59,29 +59,6 @@ async function get_network_member(nwid, memberid) {
+   return {network, member};
+ }
+
+-function managedMemberIds(memberResponse) {
+-  const ids = new Set();
+-  if (Array.isArray(memberResponse)) {
+-    for (const item of memberResponse) {
+-      if (item && typeof item === 'object') {
+-        for (const id of Object.keys(item)) {
+-          if (/^[0-9a-f]{10}$/i.test(id)) ids.add(id.toLowerCase());
+-        }
+-      }
+-    }
+-  } else if (memberResponse && typeof memberResponse === 'object') {
+-    for (const id of Object.keys(memberResponse)) {
+-      if (/^[0-9a-f]{10}$/i.test(id)) ids.add(id.toLowerCase());
+-    }
+-  }
+-  return ids;
+-}
+-
+-function peerIsOnline(peer) {
+-  return Boolean(peer) && Number(peer.latency) >= 0 &&
+-    (peer.versionMajor === undefined || peer.versionMajor !== -1);
+-}
+-
+ async function get_dashboard_stats() {
+   const [networks, peers] = await Promise.all([
+     zt.network_list(),
+@@ -92,15 +69,16 @@ async function get_dashboard_stats() {
+   );
+   const memberIds = new Set();
+   for (const response of memberResponses) {
+-    for (const id of managedMemberIds(response)) memberIds.add(id);
++    for (const id of statusTools.managedMemberIds(response)) memberIds.add(id);
+   }
+   const peerByAddress = new Map(
+     (Array.isArray(peers) ? peers : []).map(peer => [String(peer.address).toLowerCase(), peer])
+   );
+-  const onlineMemberCount = [...memberIds]
+-    .filter(id => peerIsOnline(peerByAddress.get(id))).length;
++  const planetReachableMemberCount = [...memberIds]
++    .filter(id => statusTools.isPlanetReachable(peerByAddress.get(id))).length;
+   return {available: true, networkCount: networks.length,
+-    memberCount: memberIds.size, onlineMemberCount: onlineMemberCount};
++    memberCount: memberIds.size,
++    planetReachableMemberCount: planetReachableMemberCount};
+ }
+
+ // ZT network controller home page
+@@ -113,7 +91,7 @@ exports.index = async function(req, res) {
+   try {
+     const zt_status = await zt.get_zt_status();
+     let dashboard_stats = {available: false, networkCount: 0,
+-      memberCount: 0, onlineMemberCount: 0};
++      memberCount: 0, planetReachableMemberCount: 0};
+     try {
+       dashboard_stats = await get_dashboard_stats();
+     } catch (statsError) {
+diff --git a/src/routes/zt_controller.js b/src/routes/zt_controller.js
+--- a/src/routes/zt_controller.js
++++ b/src/routes/zt_controller.js
+@@ -11,11 +11,15 @@ const router = express.Router();
+
+ var networkController = require('../controllers/networkController');
+ const downloadsController = require('../controllers/downloadsController');
++const monitoringController = require('../controllers/monitoringController');
+
+ // network routes //
+
+ // GET ZT network controller home page
+ router.get('/', restrict, networkController.index);
+
++// Runtime, path, relay-observer and traffic status
++router.get('/monitor', restrict, monitoringController.index);
++
+ // Authenticated downloads for generated Planet and Moon files
+ router.get('/downloads', restrict, downloadsController.index);
+diff --git a/src/controllers/zt.js b/src/controllers/zt.js
+--- a/src/controllers/zt.js
++++ b/src/controllers/zt.js
+@@ -17,8 +17,9 @@ const init_options = async function() {
+     throw(err);
+   }
+
+-  options = {
++  const options = {
+     json: true,
++    followRedirect: false,
+     headers: {
+       'X-ZT1-Auth': tok
+     }

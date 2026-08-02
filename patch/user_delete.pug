@@ -1,0 +1,35 @@
+extends users_layout
+
+block users_content
+  .content-card-body
+    .confirm-card.confirm-card-embedded
+      if user === null
+        .confirm-icon.is-danger
+          span.glyphicon.glyphicon-exclamation-sign(aria-hidden='true')
+        h2= t('users.not_found')
+        a.btn.btn-default(href='/users')= t('common.back')
+      else if self_delete === true
+        .confirm-icon.is-danger
+          span.glyphicon.glyphicon-ban-circle(aria-hidden='true')
+        h2= t('users.cannot_delete_self')
+        a.btn.btn-default(href='/users')= t('common.back')
+      else if deleted
+        .confirm-icon.is-success
+          span.glyphicon.glyphicon-ok(aria-hidden='true')
+        h2= t('users.deleted', {name: user.name})
+        a.btn.btn-primary(href='/users')= t('nav.users')
+      else
+        .confirm-icon.is-danger
+          span.glyphicon.glyphicon-trash(aria-hidden='true')
+        h2= t('users.delete_warning')
+        p= t('common.confirm_irreversible')
+        form(method='POST' action='')
+          .form-actions.form-actions-center
+            button.btn.btn-danger(type='submit' name='delete' value='delete')= t('users.delete_button', {name: user.name})
+            a.btn.btn-default(href='/users')= t('common.cancel')
+
+      if errors
+        .alert.alert-danger.text-left
+          ul.compact-list
+            each err in errors
+              li= localize_error(err.msg)

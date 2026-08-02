@@ -40,27 +40,25 @@ RUN if [ "$DEBIAN_MIRROR" != default ]; then \
 COPY patch/ztncui-modern.patch /tmp/ztncui-modern.patch
 COPY patch/ztncui-mtu.patch /tmp/ztncui-mtu.patch
 COPY patch/ztncui-downloads.patch /tmp/ztncui-downloads.patch
+COPY patch/ztncui-ui.patch /tmp/ztncui-ui.patch
+COPY patch/ztncui-monitor.patch /tmp/ztncui-monitor.patch
 RUN cd /opt/ztncui \
     && patch -l -p1 < /tmp/ztncui-modern.patch \
     && patch -l -p1 < /tmp/ztncui-mtu.patch \
     && patch -l -p1 < /tmp/ztncui-downloads.patch \
+    && patch -l -p1 < /tmp/ztncui-ui.patch \
+    && patch -l -p1 < /tmp/ztncui-monitor.patch \
     && cd src \
     && npm install --package-lock-only --ignore-scripts \
     && npm ci --omit=dev \
     && npm cache clean --force
-COPY patch/mtu.pug /opt/ztncui/src/views/mtu.pug
 COPY patch/downloadsController.js /opt/ztncui/src/controllers/downloadsController.js
-COPY patch/downloads.pug /opt/ztncui/src/views/downloads.pug
+COPY patch/monitoringController.js /opt/ztncui/src/controllers/monitoringController.js
 COPY patch/ui-modern.css /opt/ztncui/src/public/stylesheets/ui-modern.css
-COPY patch/head_layout.pug /opt/ztncui/src/views/head_layout.pug
-COPY patch/controller_layout.pug /opt/ztncui/src/views/controller_layout.pug
-COPY patch/network_layout.pug /opt/ztncui/src/views/network_layout.pug
-COPY patch/users_layout.pug /opt/ztncui/src/views/users_layout.pug
-COPY patch/dashboard.pug /opt/ztncui/src/views/index.pug
-COPY patch/networks.pug /opt/ztncui/src/views/networks.pug
-COPY patch/login_layout.pug /opt/ztncui/src/views/login_layout.pug
-COPY patch/login.pug /opt/ztncui/src/views/login.pug
-COPY patch/front_door.pug /opt/ztncui/src/views/front_door.pug
+COPY patch/uiLanguage.js /opt/ztncui/src/uiLanguage.js
+COPY patch/uiStatus.js /opt/ztncui/src/uiStatus.js
+COPY patch/*.pug /opt/ztncui/src/views/
+RUN mv /opt/ztncui/src/views/dashboard.pug /opt/ztncui/src/views/index.pug
 
 FROM node:20-bookworm-slim
 ARG ZT_VERSION
@@ -79,9 +77,8 @@ ENV TZ=Asia/Shanghai \
     IP_ADDR6="" \
     ZT_PORT=9994 \
     API_PORT=3443 \
-    FILE_SERVER_PORT=3000 \
     DEFAULT_NETWORK_MTU=1280 \
-    HTTP_HOST=0.0.0.0 \
+    HTTP_HOST=127.0.0.1 \
     NODE_ENV=production
 
 RUN set -eux; \
@@ -105,7 +102,6 @@ COPY --from=mkworld-builder /src/ZeroTierOne/attic/world/mkworld /usr/local/libe
 COPY --from=ztncui-builder /opt/ztncui /opt/ztncui
 COPY patch/entrypoint.sh /usr/local/bin/entrypoint.sh
 COPY patch/healthcheck.sh /usr/local/bin/healthcheck.sh
-COPY patch/http_server.js /opt/planet-file-server/http_server.js
 
 RUN set -eux; \
     cp -a /opt/ztncui/src/etc/. /bak/ztncui-state/; \
@@ -117,6 +113,6 @@ RUN set -eux; \
 
 WORKDIR /app
 VOLUME ["/app/dist", "/var/lib/zerotier-one", "/app/config", "/var/lib/ztncui"]
-EXPOSE 9994/tcp 9994/udp 3443/tcp 3000/tcp
+EXPOSE 9994/tcp 9994/udp 3443/tcp
 HEALTHCHECK --interval=30s --timeout=8s --start-period=30s --retries=3 CMD ["/usr/local/bin/healthcheck.sh"]
 ENTRYPOINT ["/usr/bin/tini", "--", "/usr/local/bin/entrypoint.sh"]

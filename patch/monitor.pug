@@ -1,0 +1,183 @@
+extends controller_layout
+
+block content
+  .page-heading
+    div
+      span.eyebrow= t('monitor.eyebrow')
+      h1= t('monitor.title')
+      p= t('monitor.description')
+    a.btn.btn-default(href='/controller/monitor')
+      span.glyphicon.glyphicon-refresh(aria-hidden='true')
+      |  #{t('common.refresh')}
+
+  if error
+    .alert.alert-danger= error
+  else
+    if !monitor.service.planetMatches || monitor.service.publicPlanetCount
+      .alert.alert-danger.monitor-alert
+        strong= t('monitor.planet_problem')
+        p= t('monitor.planet_problem_desc', {count: monitor.service.publicPlanetCount})
+    if monitor.summary.bridgeMemberCount
+      .alert.alert-warning.monitor-alert
+        strong= t('monitor.bridge_warning', {count: monitor.summary.bridgeMemberCount})
+        p= t('monitor.bridge_warning_desc')
+
+    .monitor-summary-grid
+      .stat-card.monitor-stat
+        .stat-icon
+          span.glyphicon.glyphicon-hdd
+        .stat-content
+          span.stat-label= t('monitor.private_root')
+          strong(class=monitor.service.planetMatches && monitor.service.publicPlanetCount === 0 ? 'text-success' : 'text-danger')= monitor.service.planetMatches && monitor.service.publicPlanetCount === 0 ? t('monitor.healthy') : t('monitor.abnormal')
+      .stat-card.monitor-stat
+        .stat-icon
+          span.glyphicon.glyphicon-signal
+        .stat-content
+          span.stat-label= t('monitor.planet_reachable')
+          strong #{monitor.summary.planetReachableCount} / #{monitor.summary.memberCount}
+      .stat-card.monitor-stat
+        .stat-icon
+          span.glyphicon.glyphicon-resize-small
+        .stat-content
+          span.stat-label= t('monitor.probe_direct')
+          strong= monitor.probe.available ? monitor.summary.probeDirectCount : '—'
+      .stat-card.monitor-stat
+        .stat-icon
+          span.glyphicon.glyphicon-random
+        .stat-content
+          span.stat-label= t('monitor.probe_relay')
+          strong= monitor.probe.available ? monitor.summary.probeRelayCount : '—'
+
+    .row.monitor-card-row
+      .col-md-6
+        section.surface-card.monitor-card
+          .card-heading
+            div
+              h2= t('monitor.service_status')
+              p= t('monitor.generated_at', {time: monitor.generatedAt})
+          .detail-grid
+            .detail-item
+              span= t('dashboard.node_address')
+              code= monitor.service.address
+            .detail-item
+              span= t('dashboard.zt_version')
+              strong= monitor.service.version
+            .detail-item
+              span= t('monitor.planet_hash')
+              strong= monitor.service.planetMatches ? t('monitor.consistent') : t('monitor.inconsistent')
+            .detail-item
+              span= t('monitor.public_roots')
+              strong= monitor.service.publicPlanetCount
+            .detail-item
+              span= t('dashboard.tcp_fallback')
+              strong= monitor.service.tcpFallbackActive ? t('dashboard.active') : t('dashboard.inactive')
+            .detail-item
+              span= t('monitor.ui_uptime')
+              strong= formatAge(monitor.service.uptimeSeconds * 1000)
+      .col-md-6
+        section.surface-card.monitor-card
+          .card-heading
+            div
+              h2= t('monitor.traffic')
+              p= t('monitor.traffic_desc')
+          if monitor.metrics.available
+            .detail-grid
+              .detail-item
+                span= t('monitor.udp_rx')
+                strong= formatBytes(monitor.metrics.traffic.udpRx)
+                small= monitor.metrics.rates.traffic ? formatRate(monitor.metrics.rates.traffic.udpRx, 'B') : t('monitor.rate_waiting')
+              .detail-item
+                span= t('monitor.udp_tx')
+                strong= formatBytes(monitor.metrics.traffic.udpTx)
+                small= monitor.metrics.rates.traffic ? formatRate(monitor.metrics.rates.traffic.udpTx, 'B') : t('monitor.rate_waiting')
+              .detail-item
+                span= t('monitor.tcp_rx')
+                strong= formatBytes(monitor.metrics.traffic.tcpRx)
+              .detail-item
+                span= t('monitor.tcp_tx')
+                strong= formatBytes(monitor.metrics.traffic.tcpTx)
+              .detail-item
+                span= t('monitor.packet_rx')
+                strong= monitor.metrics.rates.packets ? formatRate(monitor.metrics.rates.packets.rx, 'pkt') : t('monitor.rate_waiting')
+              .detail-item
+                span= t('monitor.packet_tx')
+                strong= monitor.metrics.rates.packets ? formatRate(monitor.metrics.rates.packets.tx, 'pkt') : t('monitor.rate_waiting')
+          else
+            .alert.alert-info= t('monitor.metrics_waiting')
+
+    section.surface-card.table-card.monitor-member-card
+      .card-heading.card-heading-padded
+        div
+          h2= t('monitor.member_paths')
+          p= t('monitor.scope_note')
+        if monitor.probe.available
+          span.status-pill.is-online
+            span.status-dot
+            | #{t('monitor.probe_available')}
+        else
+          span.status-pill.is-offline
+            span.status-dot
+            | #{t('monitor.probe_unavailable')}
+      .table-responsive
+        table.table.app-table.monitor-table
+          thead
+            tr
+              th= t('network.device')
+              th= t('monitor.networks')
+              th= t('monitor.planet_view')
+              th= t('monitor.probe_view')
+              th= t('monitor.risk')
+          tbody
+            each member in monitor.members
+              tr
+                td
+                  strong= member.name || member.id
+                  if member.name
+                    code.monitor-member-id= member.id
+                  small.member-version= member.version ? 'v' + member.version : t('common.none')
+                td
+                  each network in member.networks
+                    a.monitor-network-link(href='/controller/network/' + network.nwid)= network.name || network.nwid
+                td
+                  if member.planet.reachable
+                    span.path-badge.is-direct= t('monitor.to_planet_direct')
+                    small.monitor-path-meta #{member.planet.latency} ms · #{t('monitor.activity_ago', {age: formatAge(member.planet.lastActivityMs)})}
+                    if member.planet.path
+                      code.monitor-path= member.planet.path
+                  else
+                    span.path-badge.is-unknown= t('monitor.planet_unreachable')
+                td
+                  case member.probe.state
+                    when 'direct'
+                      span.path-badge.is-direct DIRECT
+                    when 'relay'
+                      span.path-badge.is-relay RELAY
+                    when 'tcp_relay'
+                      span.path-badge.is-relay TCP RELAY
+                    when 'self'
+                      span.path-badge.is-self= t('monitor.probe_self')
+                    when 'unknown'
+                      span.path-badge.is-unknown= t('monitor.unknown')
+                    default
+                      span.path-badge.is-unknown= t('monitor.unavailable')
+                  if member.probe.latency !== null
+                    small.monitor-path-meta #{member.probe.latency} ms
+                  if member.probe.path
+                    code.monitor-path= member.probe.path
+                td
+                  if member.activeBridge
+                    span.risk-badge= t('monitor.bridge_enabled')
+                  if member.versionBehind
+                    span.risk-badge= t('monitor.old_client')
+                  if !member.activeBridge && !member.versionBehind
+                    span.muted-text= t('common.none')
+            else
+              tr
+                td.empty-table-cell(colspan='5')= t('monitor.no_members')
+
+    p.monitor-footnote= t('monitor.relay_limit_note')
+
+    script.
+      setTimeout(function() {
+        if (!document.hidden) window.location.reload();
+      }, 10000);
