@@ -1,5 +1,5 @@
 // Offline regression tests. All identities/state are disposable; no host ports
-// or production mounts are used. Run: node tests/multi-root.mjs IMAGE
+// or production mounts are used. Run as root: sudo node tests/multi-root.mjs IMAGE
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -8,6 +8,9 @@ import { spawnSync } from 'node:child_process';
 
 const image = process.argv[2];
 if (!image) throw new Error('Usage: node tests/multi-root.mjs IMAGE');
+if (process.getuid && process.getuid() !== 0) {
+  throw new Error('Run this offline container regression with sudo: ZeroTier secures its disposable bind-mounted state with root ownership and mode 0700.');
+}
 const base = fs.mkdtempSync(path.join(os.tmpdir(), 'planet-regression-'));
 const containers = new Set();
 let serial = 0;

@@ -130,7 +130,9 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Verify signing, startup, rollback protection and authenticated UI
-        run: node tests/multi-root.mjs zerotier-planet:ci-test
+        # The daemon deliberately makes its bind-mounted state root-owned/0700.
+        # Use root to inspect disposable state; do not relax production modes.
+        run: sudo "$(command -v node)" tests/multi-root.mjs zerotier-planet:ci-test
 
       - name: Build and optionally publish
         uses: docker/build-push-action@v7

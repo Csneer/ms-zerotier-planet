@@ -180,10 +180,10 @@ node tests/root-status.cjs
 node tests/ui-listen.cjs
 node tests/manage-upgrade.cjs
 node tests/native-root.cjs
-node tests/multi-root.mjs zerotier-planet:multi-root
+sudo node tests/multi-root.mjs zerotier-planet:multi-root
 ```
 
-该测试仅使用临时目录和 `--network none` 容器，覆盖双 Root 签名、递增时间戳、错误签名/私钥 identity/端口拒绝、仅公开文件的候选包、external 启动/升级/旧版本拒绝、原单 Root Web 服务启动、双地址共享后台、中英文页面、登录保护和拓扑数据异常时的页面降级。
+容器回归需要 root 读取 ZeroTier 自动收紧为 0700 的临时状态目录；不要为了通过测试放宽生产数据权限。该测试仅使用临时目录和 `--network none` 容器，覆盖双 Root 签名、递增时间戳、错误签名/私钥 identity/端口拒绝、仅公开文件的候选包、external 启动/升级/旧版本拒绝、原单 Root Web 服务启动、双地址共享后台、中英文页面、登录保护和拓扑数据异常时的页面降级。
 
 ### 2026-09-20 两机隔离实验记录
 
