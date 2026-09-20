@@ -41,6 +41,9 @@
 #include <vector>
 #include <algorithm>
 #include <chrono>
+#include <set>
+#include <stdexcept>
+#include <cctype>
 
 #include <node/Constants.hpp>
 #include <node/World.hpp>
@@ -52,24 +55,79 @@
 using namespace ZeroTier;
 using json = nlohmann::json;
 
+void validateRoots(const std::vector<World::Root>& roots) {
+	if (roots.empty() || roots.size() > ZT_WORLD_MAX_ROOTS)
+		throw std::runtime_error("invalid root count");
+	std::set<uint64_t> addresses;
+	for (const auto& root : roots) {
+		if (!root.identity || root.identity.hasPrivate() || !root.identity.locallyValidate() ||
+			!addresses.insert(root.identity.address().toInt()).second)
+			throw std::runtime_error("roots must contain unique, valid public identities");
+		if (root.stableEndpoints.empty() || root.stableEndpoints.size() > ZT_WORLD_MAX_STABLE_ENDPOINTS_PER_ROOT)
+			throw std::runtime_error("invalid endpoint count");
+		for (const auto& ep : root.stableEndpoints) {
+			if ((!ep.isV4() && !ep.isV6()) || !ep.port())
+				throw std::runtime_error("invalid IP/port endpoint");
+		}
+	}
+}
+
+World readWorld(const char* path) {
+	std::string content;
+	if (!OSUtils::readFile(path, content) || content.empty() || content.size() > ZT_WORLD_MAX_SERIALIZED_LENGTH)
+		throw std::runtime_error("unable to read planet");
+	Buffer<ZT_WORLD_MAX_SERIALIZED_LENGTH> buffer(content.data(), content.size());
+	World world;
+	if (world.deserialize(buffer, 0) != content.size() || world.type() != World::TYPE_PLANET || world.id() != ZT_WORLD_ID_EARTH)
+		throw std::runtime_error("not a complete Earth planet");
+	validateRoots(world.roots());
+	return world;
+}
+
+json worldJson(const World& world) {
+	json result = {{"type", "planet"}, {"id", world.id()}, {"timestamp", world.timestamp()}, {"roots", json::array()}};
+	for (const auto& root : world.roots()) {
+		char identity[ZT_IDENTITY_STRING_BUFFER_LENGTH];
+		root.identity.toString(false, identity);
+		json endpoints = json::array();
+		for (const auto& ep : root.stableEndpoints) {
+			char address[128];
+			ep.toString(address);
+			endpoints.push_back(address);
+		}
+		result["roots"].push_back({{"identity", identity}, {"stableEndpoints", endpoints}});
+	}
+	return result;
+}
+
 void printHelp() {
 	printf("Usage: mkworld [options]\n");
 	printf("Options:\n");
 	printf("  -h, --help          Display this help message\n");
 	printf("  -j, --json2bin      Convert from JSON file to world.bin\n");
 	printf("  -b, --bin2json      Convert from world.bin to JSON format\n");
+	printf("  --inspect FILE     Print public planet metadata as JSON (read-only)\n");
+	printf("  --verify-update OLD NEW  Verify signature, world ID and increasing timestamp\n");
 }
 
 int jsonToBinary() {
 	std::string previous, current;
-	if ((!OSUtils::readFile("previous.c25519", previous)) || (!OSUtils::readFile("current.c25519", current))) {
+	const bool havePrevious = OSUtils::readFile("previous.c25519", previous);
+	const bool haveCurrent = OSUtils::readFile("current.c25519", current);
+	std::string priorContent;
+	const bool haveWorld = OSUtils::readFile("world.bin.previous", priorContent);
+	if (havePrevious != haveCurrent || (haveWorld && !havePrevious)) {
+		fprintf(stderr, "FATAL: existing worlds require both signing keys; refusing to replace keys\n");
+		return 1;
+	}
+	if (!havePrevious && !haveCurrent) {
 		C25519::Pair np(C25519::generate());
 		previous = std::string();
 		previous.append((const char*)np.pub.data, ZT_C25519_PUBLIC_KEY_LEN);
 		previous.append((const char*)np.priv.data, ZT_C25519_PRIVATE_KEY_LEN);
 		current = previous;
-		OSUtils::writeFile("previous.c25519", previous);
-		OSUtils::writeFile("current.c25519", current);
+		if (!OSUtils::writeFile("previous.c25519", previous) || !OSUtils::writeFile("current.c25519", current))
+			throw std::runtime_error("unable to write signing keys");
 		fprintf(stderr, "INFO: created initial world keys: previous.c25519 and current.c25519 (both initially the same)" ZT_EOL_S);
 	}
 
@@ -127,19 +185,39 @@ int jsonToBinary() {
 
 	// 解析JSON数据
 	json config = json::parse(fileContent);
-
+	if (!config.is_object() || !config.contains("roots") || !config["roots"].is_array())
+		throw std::runtime_error("roots must be an array");
 
 	for (auto& root : config["roots"]) {
+		if (!root.is_object() || !root.contains("stableEndpoints") || !root["stableEndpoints"].is_array())
+			throw std::runtime_error("stableEndpoints must be an array");
 		roots.push_back(World::Root());
 		roots.back().identity = Identity(root["identity"].get<std::string>().c_str());
 		for (auto& endpoint : root["stableEndpoints"]) {
-			roots.back().stableEndpoints.push_back(InetAddress(endpoint.get<std::string>().c_str()));
+			const std::string value = endpoint.get<std::string>();
+			const auto slash = value.find('/');
+			if (slash == std::string::npos || slash == 0 || value.find('/', slash + 1) != std::string::npos)
+				throw std::runtime_error("endpoint must be IP/port");
+			const std::string port = value.substr(slash + 1);
+			if (port.empty() || port.size() > 5 ||
+				!std::all_of(port.begin(), port.end(), [](unsigned char ch) { return std::isdigit(ch); }) ||
+				std::stoul(port) == 0 || std::stoul(port) > 65535)
+				throw std::runtime_error("endpoint port must be 1..65535");
+			roots.back().stableEndpoints.push_back(InetAddress(value.c_str()));
 		}
 	}
+	validateRoots(roots);
 
 	fprintf(stderr, "INFO: generating and signing id==%llu ts==%llu" ZT_EOL_S, (unsigned long long)id, (unsigned long long)ts);
 
 	World nw = World::make(World::TYPE_PLANET, id, ts, currentKP.pub, roots, previousKP);
+	if (haveWorld) {
+		World old = readWorld("world.bin.previous");
+		if (!old.shouldBeReplacedBy(nw)) {
+			fprintf(stderr, "FATAL: new planet is not a valid signed update to the previous world\n");
+			return 1;
+		}
+	}
 
 	Buffer<ZT_WORLD_MAX_SERIALIZED_LENGTH> outtmp;
 	nw.serialize(outtmp, false);
@@ -150,7 +228,8 @@ int jsonToBinary() {
 		return 1;
 	}
 
-	OSUtils::writeFile("world.bin", std::string((const char*)outtmp.data(), outtmp.size()));
+	if (!OSUtils::writeFile("world.bin", std::string((const char*)outtmp.data(), outtmp.size())))
+		throw std::runtime_error("unable to write world.bin");
 	fprintf(stderr, "INFO: world.bin written with %u bytes of binary world data." ZT_EOL_S, outtmp.size());
 
 	fprintf(stdout, ZT_EOL_S);
@@ -166,12 +245,12 @@ int jsonToBinary() {
 	return 0;
 }
 
-void binaryToJson() {
+int binaryToJson() {
 	// Read world.bin file into memory
 	std::string binContent;
 	if (!OSUtils::readFile("world.bin", binContent)) {
 		fprintf(stderr, "Failed to open world.bin file." ZT_EOL_S);
-		return;
+		return 1;
 	}
 
 	// Deserialize the binary data into a World object
@@ -179,7 +258,7 @@ void binaryToJson() {
 	World world;
 	if (!world.deserialize(binBuffer, 0)) {
 		fprintf(stderr, "Failed to deserialize world.bin content." ZT_EOL_S);
-		return;
+		return 1;
 	}
 
 	// Create a JSON object to store the world data
@@ -197,7 +276,7 @@ void binaryToJson() {
 
 		// Add identity to the root JSON object
 		char identityStr[ZT_IDENTITY_STRING_BUFFER_LENGTH];
-		root.identity.toString(true, identityStr); // Include private key
+		root.identity.toString(false, identityStr); // Public identity only
 		rootJson["identity"] = identityStr;
 
 		// Add stableEndpoints array to the root JSON object
@@ -216,15 +295,31 @@ void binaryToJson() {
 	printf("World JSON:\n%s\n", jsonStr.c_str());
 	if (!OSUtils::writeFile("config.json", jsonStr.c_str(), jsonStr.size())) {
 		fprintf(stderr, "Failed to write JSON data to config.json." ZT_EOL_S);
+		return 1;
 	}
 	else {
 		printf("JSON data successfully written to config.json." ZT_EOL_S);
 	}
+	return 0;
 }
 
 
 int main(int argc, char** argv)
 {
+	try {
+	if (argc == 3 && std::string(argv[1]) == "--inspect") {
+		printf("%s\n", worldJson(readWorld(argv[2])).dump(2).c_str());
+		return 0;
+	}
+	if (argc == 4 && std::string(argv[1]) == "--verify-update") {
+		World old = readWorld(argv[2]);
+		const World candidate = readWorld(argv[3]);
+		if (!old.shouldBeReplacedBy(candidate)) {
+			fprintf(stderr, "FATAL: invalid signature, world ID or timestamp for update\n");
+			return 1;
+		}
+		return 0;
+	}
 	bool json2bin = false;
 	bool bin2json = false;
 
@@ -240,6 +335,10 @@ int main(int argc, char** argv)
 		else if (arg == "-b" || arg == "--bin2json") {
 			bin2json = true;
 		}
+		else {
+			printHelp();
+			return 1;
+		}
 	}
 
 	if (!(json2bin || bin2json)) {
@@ -254,11 +353,15 @@ int main(int argc, char** argv)
 	}
 
 	if (json2bin) {
-		jsonToBinary();
+		return jsonToBinary();
 	}
 	else if (bin2json) {
-		binaryToJson();
+		return binaryToJson();
 	}
 
 	return 0;
+	} catch (...) {
+		fprintf(stderr, "FATAL: invalid world/configuration or I/O failure\n");
+		return 1;
+	}
 }

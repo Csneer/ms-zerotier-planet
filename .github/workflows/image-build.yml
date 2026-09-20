@@ -13,6 +13,8 @@ on:
       - install.sh
       - manage.sh
       - uninstall.sh
+      - planet-bundle.sh
+      - tests/**
       - patch/**
       - .github/workflows/image-build.yml
   pull_request:
@@ -26,6 +28,8 @@ on:
       - install.sh
       - manage.sh
       - uninstall.sh
+      - planet-bundle.sh
+      - tests/**
       - patch/**
       - .github/workflows/image-build.yml
   schedule:
@@ -59,8 +63,15 @@ jobs:
         run: |
           cp .env.example .env
           sed -i 's/IP_ADDR4=203.0.113.10/IP_ADDR4=198.51.100.10/' .env
-          bash -n build.sh deploy.sh install.sh manage.sh uninstall.sh patch/entrypoint.sh patch/healthcheck.sh
+          bash -n build.sh deploy.sh install.sh manage.sh uninstall.sh planet-bundle.sh patch/entrypoint.sh patch/healthcheck.sh
           for source in patch/*.js; do node --check "$source"; done
+          node --check tests/multi-root.mjs
+          for source in tests/*.cjs; do node --check "$source"; done
+          node tests/ui-models.cjs
+          node tests/root-status.cjs
+          node tests/ui-listen.cjs
+          node tests/manage-upgrade.cjs
+          node tests/native-root.cjs
           docker compose config --quiet
 
   image:
@@ -102,6 +113,24 @@ jobs:
             type=raw,value=latest,enable=${{ github.event_name != 'pull_request' }}
             type=raw,value=${{ steps.version.outputs.version }}
             type=sha
+
+      - name: Build native image for offline regression
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          load: true
+          platforms: linux/amd64
+          tags: zerotier-planet:ci-test
+          build-args: |
+            ZT_VERSION=${{ steps.version.outputs.version }}
+            DEBIAN_MIRROR=default
+            SOURCE_REPOSITORY=${{ github.server_url }}/${{ github.repository }}
+            SOURCE_REVISION=${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Verify signing, startup, rollback protection and authenticated UI
+        run: node tests/multi-root.mjs zerotier-planet:ci-test
 
       - name: Build and optionally publish
         uses: docker/build-push-action@v7

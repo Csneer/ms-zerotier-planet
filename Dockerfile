@@ -52,11 +52,16 @@ RUN cd /opt/ztncui \
     && npm install --package-lock-only --ignore-scripts \
     && npm ci --omit=dev \
     && npm cache clean --force
+COPY patch/ztncui-roots.patch /tmp/ztncui-roots.patch
+RUN cd /opt/ztncui && patch -l -p1 < /tmp/ztncui-roots.patch
 COPY patch/downloadsController.js /opt/ztncui/src/controllers/downloadsController.js
 COPY patch/monitoringController.js /opt/ztncui/src/controllers/monitoringController.js
 COPY patch/ui-modern.css /opt/ztncui/src/public/stylesheets/ui-modern.css
 COPY patch/uiLanguage.js /opt/ztncui/src/uiLanguage.js
 COPY patch/uiStatus.js /opt/ztncui/src/uiStatus.js
+COPY patch/rootStatus.js /opt/ztncui/src/rootStatus.js
+COPY patch/uiListen.js /opt/ztncui/src/uiListen.js
+COPY patch/www.js /opt/ztncui/src/bin/www
 COPY patch/*.pug /opt/ztncui/src/views/
 RUN mv /opt/ztncui/src/views/dashboard.pug /opt/ztncui/src/views/index.pug
 
@@ -79,6 +84,7 @@ ENV TZ=Asia/Shanghai \
     API_PORT=3443 \
     DEFAULT_NETWORK_MTU=1280 \
     HTTP_HOST=127.0.0.1 \
+    HTTP_EXTRA_HOSTS= \
     NODE_ENV=production
 
 RUN set -eux; \

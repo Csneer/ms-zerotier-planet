@@ -1,4 +1,5 @@
 extends controller_layout
+include roots_panel
 
 block content
   if error
@@ -53,6 +54,8 @@ block content
           .stat-content
             span.stat-label= t('dashboard.tcp_fallback')
             strong= zt_status.tcpFallbackActive ? t('dashboard.active') : t('dashboard.inactive')
+
+    +roots_panel(topology, uiListeners)
 
     .section-heading
       div

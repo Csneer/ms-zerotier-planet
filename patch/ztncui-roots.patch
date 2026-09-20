@@ -1,0 +1,44 @@
+diff --git a/src/controllers/networkController.js b/src/controllers/networkController.js
+--- a/src/controllers/networkController.js
++++ b/src/controllers/networkController.js
+@@ -9,6 +9,7 @@
+ const storage = require('node-persist');
+ const zt = require('./zt');
+ const statusTools = require('../uiStatus');
++const monitoringController = require('./monitoringController');
+ const util = require('util');
+ 
+ storage.initSync({dir: 'etc/storage'});
+@@ -99,8 +100,20 @@
+     } catch (statsError) {
+       console.error('Unable to collect dashboard member statistics', statsError);
+     }
++    let topology = {available: false, roots: [], worldId: null, timestamp: null,
++      runtimeTimestamp: null, mode: process.env.PLANET_MODE || 'generated',
++      controllerId: zt_status.address, recentReceiveSeconds: 90,
++      reachableCount: 0, probeReachableCount: 0};
++    try {
++      topology = await monitoringController.collectRoots(zt_status);
++    } catch (topologyError) {
++      console.error('Unable to collect Root topology', topologyError);
++    }
++    res.set('Cache-Control', 'no-store');
+     res.render('index', {title: 'ztncui', navigate: navigate,
+-      zt_status: zt_status, dashboard_stats: dashboard_stats});
++      zt_status: zt_status, dashboard_stats: dashboard_stats, topology,
++      uiListeners: req.app.locals.uiListeners || [],
++      formatAge: monitoringController.formatAge});
+   } catch (err) {
+     res.render('index', {title: 'ztncui',
+                       navigate: navigate, error: 'ERROR getting ZT status: ' + err});
+diff --git a/src/routes/zt_controller.js b/src/routes/zt_controller.js
+--- a/src/routes/zt_controller.js
++++ b/src/routes/zt_controller.js
+@@ -21,6 +21,7 @@
+ 
+ // Runtime, path, relay-observer and traffic status
+ router.get('/monitor', restrict, monitoringController.index);
++router.get('/roots.json', restrict, monitoringController.rootsJson);
+ 
+ // Authenticated downloads for generated Planet and Moon files
+ router.get('/downloads', restrict, downloadsController.index);

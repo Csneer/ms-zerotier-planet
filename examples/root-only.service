@@ -1,0 +1,29 @@
+[Unit]
+Description=Dedicated ZeroTier Planet Root (no managed networks or Web UI)
+Wants=network-online.target
+After=network-online.target
+StartLimitIntervalSec=60
+StartLimitBurst=3
+
+[Service]
+Type=simple
+User=root
+Group=root
+UMask=0077
+WorkingDirectory=/srv/zt-root-b/one
+ExecStartPre=/usr/bin/test -s /srv/zt-root-b/one/identity.secret
+ExecStartPre=/usr/bin/test -s /srv/zt-root-b/one/identity.public
+ExecStartPre=/usr/bin/test -s /srv/zt-root-b/one/planet
+ExecStartPre=/usr/bin/test -s /srv/zt-root-b/one/local.conf
+# Reading the Controller API can create empty network/trace directories.
+# Refuse any actual Controller data or symlinks, not those empty directories.
+ExecStartPre=/bin/sh -ec 'test ! -L /srv/zt-root-b/one/controller.d; if test -e /srv/zt-root-b/one/controller.d; then test -d /srv/zt-root-b/one/controller.d; test -z "$(find /srv/zt-root-b/one/controller.d -mindepth 1 ! -type d -print -quit)"; fi'
+ExecStartPre=/usr/bin/test ! -e /srv/zt-root-b/one/previous.c25519
+ExecStartPre=/usr/bin/test ! -e /srv/zt-root-b/one/current.c25519
+ExecStart=/usr/sbin/zerotier-one -U -p9994 /srv/zt-root-b/one
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=20s
+
+[Install]
+WantedBy=multi-user.target

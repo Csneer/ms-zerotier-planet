@@ -12,4 +12,8 @@ case "$API_HOST" in
 esac
 
 curl -fsS --max-time 3 -H "X-ZT1-Auth: ${TOKEN}" "http://127.0.0.1:${ZT_PORT}/status" >/dev/null
+if [ "${PLANET_MODE:-generated}" = external ]; then
+    cmp -s /app/config/planet /var/lib/zerotier-one/planet
+fi
+[ "${ROOT_ONLY:-0}" != 1 ] || exit 0
 curl -fsS --max-time 3 "http://${API_HOST}:${API_PORT}/healthz" >/dev/null

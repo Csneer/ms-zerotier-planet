@@ -5,6 +5,7 @@ const fs = require('fs');
 const got = require('got');
 const storage = require('node-persist');
 const statusTools = require('../uiStatus');
+const rootStatus = require('../rootStatus');
 const zt = require('./zt');
 
 storage.initSync({dir: 'etc/storage'});
@@ -97,6 +98,17 @@ async function getProbe() {
   } catch (error) {
     return {available: false, status: null, peers: [], error: error.code || error.message};
   }
+}
+
+async function collectRoots(serviceStatus, peers, probe) {
+  const [service, planetPeers, client] = await Promise.all([
+    serviceStatus || zt.get_zt_status(), peers || zt.peers(), probe || getProbe()
+  ]);
+  let metadata = null;
+  try {
+    metadata = JSON.parse(await fs.promises.readFile('/app/config/planet-roots.json', 'utf8'));
+  } catch (_) { /* Show unavailable metadata instead of inventing a topology. */ }
+  return rootStatus.build(metadata, service, planetPeers, client);
 }
 
 function memberVersion(member, peer) {
@@ -196,8 +208,10 @@ async function collect() {
   } catch (_) {
     // The page will surface a failed consistency check without exposing paths or secrets.
   }
-  const publicPlanetCount = (Array.isArray(planetPeers) ? planetPeers : [])
-    .filter(peer => peer && peer.role === 'PLANET').length;
+  const topology = await collectRoots(serviceStatus, planetPeers, probe);
+  const configuredRoots = topology.available ? new Set(topology.roots.map(root => root.id)) : null;
+  const unexpectedPlanetCount = configuredRoots ? (Array.isArray(planetPeers) ? planetPeers : [])
+    .filter(peer => peer && peer.role === 'PLANET' && !configuredRoots.has(String(peer.address).toLowerCase())).length : null;
 
   return {
     generatedAt: new Date(now).toISOString(),
@@ -206,10 +220,12 @@ async function collect() {
       runtimePlanetHash: runtimeHash,
       distributedPlanetHash: distributedHash,
       planetMatches: Boolean(runtimeHash && distributedHash && runtimeHash === distributedHash),
-      publicPlanetCount,
+      unexpectedPlanetCount,
+      rootConfigAvailable: configuredRoots !== null,
       uptimeSeconds: process.uptime()
     },
     probe,
+    topology,
     metrics,
     members,
     summary: {
@@ -232,6 +248,7 @@ exports.index = async function(req, res) {
     res.set('Cache-Control', 'no-store');
     res.render('monitor', {
       title: req.t('monitor.title'), navigate, monitor,
+      topology: monitor.topology, uiListeners: req.app.locals.uiListeners || [],
       formatBytes, formatRate, formatAge
     });
   } catch (error) {
@@ -244,3 +261,15 @@ exports.index = async function(req, res) {
 };
 
 exports.collect = collect;
+exports.collectRoots = collectRoots;
+exports.formatAge = formatAge;
+exports.rootsJson = async function(req, res) {
+  res.set('Cache-Control', 'no-store');
+  try {
+    const topology = await collectRoots();
+    res.json({generatedAt: new Date().toISOString(), topology,
+      listeners: req.app.locals.uiListeners || []});
+  } catch (_) {
+    res.status(503).json({error: 'Root observations temporarily unavailable'});
+  }
+};

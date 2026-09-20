@@ -4,3 +4,8 @@ data
 backups
 .env
 *.md
+**/identity.secret
+**/authtoken.secret
+**/metricstoken.secret
+**/session.secret
+**/*.c25519

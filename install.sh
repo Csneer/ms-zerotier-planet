@@ -150,6 +150,7 @@ else
         printf 'API_PORT=%s\n' "${API_PORT:-3443}"
         printf 'DEFAULT_NETWORK_MTU=%s\n' "${DEFAULT_NETWORK_MTU:-1280}"
         printf 'HTTP_HOST=%s\n' "${HTTP_HOST:-127.0.0.1}"
+        printf 'HTTP_EXTRA_HOSTS=%s\n' "${HTTP_EXTRA_HOSTS:-}"
         printf 'ZT_PROBE_STATE_DIR=%s\n' "${ZT_PROBE_STATE_DIR:-${data_dir%/}/probe-state}"
         printf 'ZT_PROBE_ADDR=%s\n' "${ZT_PROBE_ADDR:-http://127.0.0.1:9993}"
         printf 'TZ=%s\n' "${TZ:-Asia/Shanghai}"

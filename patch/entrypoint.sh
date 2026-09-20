@@ -7,6 +7,8 @@ CONFIG_PATH=/app/config
 DIST_PATH=/app/dist
 ZTNCUI_PATH=/opt/ztncui/src
 ZTNCUI_STATE=/var/lib/ztncui
+PLANET_MODE=${PLANET_MODE:-generated}
+ROOT_ONLY=${ROOT_ONLY:-0}
 
 log() { printf '[planet] %s\n' "$*"; }
 die() { log "ERROR: $*" >&2; exit 1; }
@@ -48,6 +50,11 @@ discover_ip() {
 
 generate_planet() {
     local reason=$1
+    [[ "$PLANET_MODE" == generated ]] || die 'External roots must never sign a planet'
+    # A multi-root world must have one publisher. Automatic single-root
+    # regeneration could silently remove a root or republish a retired root.
+    [[ $(jq '.roots | length' "${ZEROTIER_PATH}/moon.json") == 1 ]] \
+        || die 'Use PLANET_MODE=external and publish multi-root worlds offline'
     local endpoints='[]'
     [[ -z "$IP_ADDR4" ]] || endpoints="$(jq -cn --arg ip "$IP_ADDR4" --arg port "$ZT_PORT" '[($ip + "/" + $port)]')"
     if [[ -n "$IP_ADDR6" ]]; then
@@ -70,7 +77,7 @@ generate_planet() {
     elif [[ -s "${DIST_PATH}/planet" ]]; then
         cp -p "${DIST_PATH}/planet" "${ZEROTIER_PATH}/world.bin.previous"
     fi
-    (cd "$ZEROTIER_PATH" && ./mkworld >/dev/null)
+    (cd "$ZEROTIER_PATH" && /usr/local/libexec/mkworld >/dev/null)
     install -m 0644 "${ZEROTIER_PATH}/world.bin" "${DIST_PATH}/planet"
     cp "${ZEROTIER_PATH}"/*.moon "$DIST_PATH/"
     write_config ip_addr4 "$IP_ADDR4"
@@ -87,6 +94,29 @@ activate_private_planet() {
     fi
 }
 
+activate_external_planet() {
+    local candidate="${CONFIG_PATH}/planet" metadata own_identity old_ts new_ts
+    [[ -s "$candidate" ]] || die 'External mode requires /app/config/planet'
+    metadata=$(/usr/local/libexec/mkworld --inspect "$candidate") \
+        || die 'Invalid external planet'
+    own_identity=$(zerotier-idtool getpublic "${ZEROTIER_PATH}/identity.secret")
+    jq -e --arg identity "$own_identity" '.roots | any(.identity == $identity)' <<<"$metadata" >/dev/null \
+        || die 'This node identity is not a root in the supplied planet'
+    # First installation is explicitly trusted out of band. Subsequent changes
+    # must extend the currently installed signature chain, never roll it back.
+    if [[ -s "${ZEROTIER_PATH}/planet" ]] && ! cmp -s "$candidate" "${ZEROTIER_PATH}/planet"; then
+        old_ts=$(/usr/local/libexec/mkworld --inspect "${ZEROTIER_PATH}/planet" | jq -r .timestamp)
+        new_ts=$(jq -r .timestamp <<<"$metadata")
+        [[ "$new_ts" -gt "$old_ts" ]] || die 'External planet must be newer than the runtime planet'
+        /usr/local/libexec/mkworld --verify-update "${ZEROTIER_PATH}/planet" "$candidate" \
+            || die 'External planet does not extend the installed signature chain'
+    fi
+    install -m 0644 "$candidate" "${DIST_PATH}/planet"
+    activate_private_planet
+    /usr/local/libexec/mkworld --inspect "${ZEROTIER_PATH}/planet" > "${CONFIG_PATH}/planet-roots.json"
+    chmod 0644 "${CONFIG_PATH}/planet-roots.json"
+}
+
 init_zerotier() {
     log 'Initializing ZeroTier identity and private planet'
     cp -an /bak/zerotier-one/. "${ZEROTIER_PATH}/"
@@ -100,6 +130,11 @@ init_zerotier() {
     zerotier-idtool generate "${ZEROTIER_PATH}/identity.secret" "${ZEROTIER_PATH}/identity.public"
     zerotier-idtool initmoon "${ZEROTIER_PATH}/identity.public" > "${ZEROTIER_PATH}/moon.json"
     generate_planet initial
+}
+
+init_external_identity() {
+    # Do not copy packaged planet/identity or generate a separate signing world.
+    zerotier-idtool generate "${ZEROTIER_PATH}/identity.secret" "${ZEROTIER_PATH}/identity.public"
 }
 
 init_ztncui_state() {
@@ -124,6 +159,8 @@ shutdown() {
 trap shutdown INT TERM EXIT
 
 mkdir -p "$ZEROTIER_PATH" "$CONFIG_PATH" "$DIST_PATH" "$ZTNCUI_STATE"
+case "$PLANET_MODE" in generated|external) ;; *) die 'PLANET_MODE must be generated or external' ;; esac
+case "$ROOT_ONLY" in 0|1) ;; *) die 'ROOT_ONLY must be 0 or 1' ;; esac
 PREVIOUS_ZT_PORT="$(read_config zerotier-one.port)"
 PREVIOUS_IP_ADDR4="$(read_config ip_addr4)"
 PREVIOUS_IP_ADDR6="$(read_config ip_addr6)"
@@ -146,23 +183,39 @@ fi
 FRESH_IDENTITY=0
 if [[ ! -s "${ZEROTIER_PATH}/identity.secret" ]]; then
     FRESH_IDENTITY=1
-    init_zerotier
+    if [[ "$PLANET_MODE" == external ]]; then init_external_identity; else init_zerotier; fi
 fi
+# A named Docker volume may be initialized from the package's build-time
+# contents.  Do not mistake that anonymous/default planet for an established
+# operator configuration.  Once a persistent identity exists, generated mode
+# is deliberately limited to a single-root world; multi-root worlds must be
+# supplied as signed external candidates.
+if [[ "$PLANET_MODE" == generated && "$FRESH_IDENTITY" == 0 && -s "${ZEROTIER_PATH}/planet" ]]; then
+    root_count=$(/usr/local/libexec/mkworld --inspect "${ZEROTIER_PATH}/planet" | jq '.roots | length')
+    [[ "$root_count" == 1 ]] || die 'Multi-root runtime requires PLANET_MODE=external'
+fi
+[[ -s "${ZEROTIER_PATH}/authtoken.secret" ]] || openssl rand -hex 16 > "${ZEROTIER_PATH}/authtoken.secret"
 install -m 0755 /usr/local/libexec/mkworld "${ZEROTIER_PATH}/mkworld"
 chmod 0600 "${ZEROTIER_PATH}/authtoken.secret" "${ZEROTIER_PATH}/identity.secret"
 chmod 0600 "${ZEROTIER_PATH}"/*.c25519 2>/dev/null || true
-if ((FRESH_IDENTITY == 0)) && [[ ! -s "${DIST_PATH}/planet" \
+if [[ "$PLANET_MODE" == generated ]] && ((FRESH_IDENTITY == 0)) && [[ ! -s "${DIST_PATH}/planet" \
       || "$PREVIOUS_IP_ADDR4" != "$IP_ADDR4" \
       || "$PREVIOUS_IP_ADDR6" != "$IP_ADDR6" \
       || "$PREVIOUS_ZT_PORT" != "$ZT_PORT" ]]; then
     [[ -s "${ZEROTIER_PATH}/moon.json" ]] || zerotier-idtool initmoon "${ZEROTIER_PATH}/identity.public" > "${ZEROTIER_PATH}/moon.json"
     generate_planet endpoint-change
 fi
-activate_private_planet
+if [[ "$PLANET_MODE" == external ]]; then
+    activate_external_planet
+else
+    activate_private_planet
+    /usr/local/libexec/mkworld --inspect "${ZEROTIER_PATH}/planet" > "${CONFIG_PATH}/planet-roots.json"
+    chmod 0644 "${CONFIG_PATH}/planet-roots.json"
+fi
 
 # Host networking avoids Docker's userland proxy/NAT on the hot UDP path. Do
 # not let a planet accidentally select Docker or ZeroTier virtual interfaces
-# as physical underlay paths. Existing operator-supplied local.conf wins.
+# as physical underlay paths. Set AUTO_TUNE_LOCAL_CONF=0 to opt out.
 if [[ ! -e "${ZEROTIER_PATH}/local.conf" && "${AUTO_TUNE_LOCAL_CONF:-1}" == 1 ]]; then
     jq -n --argjson port "$ZT_PORT" '{settings:{
         primaryPort:$port,
@@ -186,9 +239,14 @@ elif [[ "${AUTO_TUNE_LOCAL_CONF:-1}" == 1 ]]; then
     mv "${ZEROTIER_PATH}/local.conf.tmp" "${ZEROTIER_PATH}/local.conf"
     chmod 0600 "${ZEROTIER_PATH}/local.conf"
 fi
-init_ztncui_state
+if [[ "$ROOT_ONLY" == 1 ]] && [[ -d "${ZEROTIER_PATH}/controller.d/network" ]] \
+    && [[ -n $(ls -A "${ZEROTIER_PATH}/controller.d/network") ]]; then
+    die 'ROOT_ONLY cannot use a data directory with Controller networks'
+fi
 
 TOKEN="$(cat "${ZEROTIER_PATH}/authtoken.secret")"
+if [[ "$ROOT_ONLY" == 0 ]]; then
+init_ztncui_state
 if [[ ! -s "${CONFIG_PATH}/session.secret" ]]; then
     openssl rand -hex 32 > "${CONFIG_PATH}/session.secret"
 fi
@@ -197,6 +255,9 @@ chmod 0600 "${CONFIG_PATH}/session.secret"
 cat > "${ZTNCUI_PATH}/.env" <<EOF
 HTTP_PORT=${API_PORT}
 HTTP_HOST=${HTTP_HOST:-127.0.0.1}
+HTTP_EXTRA_HOSTS=${HTTP_EXTRA_HOSTS:-}
+PLANET_MODE=${PLANET_MODE}
+ROOT_ONLY=${ROOT_ONLY}
 NODE_ENV=production
 ZT_ADDR=http://127.0.0.1:${ZT_PORT}
 ZT_TOKEN=${TOKEN}
@@ -206,6 +267,7 @@ ZT_PROBE_ADDR=${ZT_PROBE_ADDR:-http://127.0.0.1:9993}
 ZT_PROBE_TOKEN_FILE=${ZT_PROBE_TOKEN_FILE:-/run/zerotier-probe/authtoken.secret}
 EOF
 chmod 0600 "${ZTNCUI_PATH}/.env"
+fi
 
 log "Starting ZeroTier $(zerotier-one -v) on UDP/TCP ${ZT_PORT}"
 zerotier-one -p"${ZT_PORT}" "$ZEROTIER_PATH" &
@@ -220,6 +282,12 @@ for _ in {1..30}; do
 done
 curl -fsS --max-time 2 -H "X-ZT1-Auth: ${TOKEN}" "http://127.0.0.1:${ZT_PORT}/status" >/dev/null \
     || die 'ZeroTier management API did not become ready'
+
+if [[ "$ROOT_ONLY" == 1 ]]; then
+    log 'Root-only service ready (no Web UI or managed networks)'
+    wait "$ZT_PID"
+    die 'Root service exited unexpectedly'
+fi
 
 (cd "$ZTNCUI_PATH" && exec node ./bin/www) &
 UI_PID=$!

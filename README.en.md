@@ -16,6 +16,9 @@ The project is published as a standalone repository rather than a GitHub Fork, w
 - Persistent identity, Controller state, users, aliases, and session key.
 - Combined health check, process supervision, graceful shutdown, and bounded Docker logs.
 - IP or ZeroTier port changes re-sign planet/moon while retaining identity and world signing keys.
+- Multi-root worlds with one offline publisher, independent Root identities and Root-only instances; see the [multi-root deployment and failover guide (Chinese)](docs/multi-root.md).
+- Multiple Roots do not provide Controller HA or guarantee instant failover: one isolated two-host trial recovered after approximately 245 seconds. Validate your client versions and real paths before relying on a recovery-time target.
+- Dashboard and monitor share Controller / World / Root topology, distinguish recent responses from stale paths or unavailable probes, and serve one UI on loopback plus explicit ZeroTier addresses.
 - Explicit, non-destructive install, upgrade, backup, restore, password-reset, and uninstall commands.
 - GitHub Actions publish multi-architecture images to this repository's GHCR package.
 
@@ -70,7 +73,7 @@ Use an image published by your repository:
   --image ghcr.io/csneer/ms-zerotier-planet:latest
 ```
 
-The installer never overwrites an existing `.env` or deletes an existing data directory. A new deployment starts with `admin/password`; change it immediately. The Web UI listens on `127.0.0.1:3443` by default. Set `HTTP_HOST` to the server's ZeroTier address when access should come from that network. HTTPS is not built in; add a trusted reverse proxy when it is needed.
+The installer never overwrites an existing `.env` or deletes an existing data directory. A new deployment starts with `admin/password`; change it immediately. The Web UI listens on `127.0.0.1:3443` by default. Set `HTTP_HOST` to the server's ZeroTier address when that is the only listener, or add explicit comma-separated addresses through `HTTP_EXTRA_HOSTS` (for example `HTTP_EXTRA_HOSTS=172.16.100.97`). Subnets and wildcard addresses are rejected for extra listeners. The default Compose deployment does not enable HTTPS; a trusted reverse proxy is recommended when it is needed. Listeners share accounts and session storage, but browser cookies are host-specific, so switching IPs may require signing in again.
 
 ## Configuration
 
@@ -87,12 +90,15 @@ Important variables:
 - `ZT_PROBE_STATE_DIR`: optional host ZeroTier client state, mounted read-only for probe authentication.
 - `CONTAINER_NAME`: override only for multiple independent instances on one host.
 - `IP_ADDR4`, `IP_ADDR6`, `ZT_PORT`: published Planet endpoints.
+- `PLANET_MODE`: `generated` for the legacy single Root; `external` for a centrally signed `config/planet`.
+- `ROOT_ONLY`: `1` starts only ZeroTier, without the Web UI; defaults to `0`.
 - `API_PORT`: Web management port.
 - `DEFAULT_NETWORK_MTU`: `1280` is recommended for Internet paths.
 - `HTTP_HOST`: Web listen address; defaults to `127.0.0.1` and may be set to the server's ZeroTier address.
+- `HTTP_EXTRA_HOSTS`: optional comma-separated explicit IP listeners sharing the same authenticated UI; unavailable optional addresses are retried without taking down the primary listener.
 - `ZT_PROBE_ADDR`: optional local probe API, defaulting to `http://127.0.0.1:9993`.
 
-After changing a public IP or `ZT_PORT`, run `./manage.sh upgrade`. Identity and `.c25519` signing keys remain unchanged, but clients must download and install the newly generated `planet`.
+In single-root `generated` mode, after changing a public IP or `ZT_PORT`, run `./manage.sh upgrade`. Identity and `.c25519` signing keys remain unchanged, but clients must download and install the newly generated `planet`. In `external` mode, publish a verified signed update with `planet-bundle.sh` instead. Multi-root redundancy does not replicate the Controller, enforce a primary/backup order, or automatically stop traffic at a cloud quota.
 
 After creating your remote repository, set `SOURCE_REPOSITORY` to its URL. Leaving it blank keeps the OCI source label empty instead of attributing a modified image to the old upstream repository.
 
@@ -104,7 +110,7 @@ The authenticated Connection Monitor reports distinct observations:
 - `Direct to Planet` is an active physical path between that member and the Planet server, not proof that the member is direct to another client.
 - Probe `DIRECT`, `RELAY`, or `TCP RELAY` describes only the path from the host's local ZeroTier client to that member. It is one observation point, not a full endpoint-to-endpoint matrix.
 - Planet packet rates and UDP/TCP traffic come from ZeroTier's built-in Prometheus metrics. The page derives rates from consecutive samples.
-- The page verifies that the runtime Planet matches the downloadable file and reports public Root connections; a healthy private Root should not retain public Root peers.
+- The page verifies that the runtime Planet matches the downloadable file and reports Roots absent from the configured public manifest; a declared private backup Root is not misclassified as public.
 
 To enable the probe view, set `ZT_PROBE_STATE_DIR` to the host ZeroTier client's state directory. Compose mounts it read-only and queries `ZT_PROBE_ADDR`. A missing token or unavailable API is reported as “probe unavailable” without affecting the main service.
 
@@ -200,7 +206,7 @@ Private GHCR packages require `docker login ghcr.io` on the deployment host. Dep
 ## Security and licensing
 
 - Do not expose the Web console to the whole Internet. Use a firewall allowlist or `HTTP_HOST=127.0.0.1` with a TLS reverse proxy.
-- For direct administration over ZeroTier, bind `HTTP_HOST` to the server's ZeroTier address; avoid `0.0.0.0`.
+- For direct administration over ZeroTier, use an explicit ZeroTier address as `HTTP_HOST` or `HTTP_EXTRA_HOSTS`; avoid `0.0.0.0`.
 - Never commit `.env`, `data/`, `backups/`, identities, `.c25519` files, or tokens.
 - ztncui is no longer actively maintained; treat it as a privileged internal service.
 - This repository does not invent a new license for historical code. Review [NOTICE.md](NOTICE.md) and all applicable third-party licenses before public redistribution or commercial use.

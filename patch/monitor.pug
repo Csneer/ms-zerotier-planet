@@ -1,4 +1,5 @@
 extends controller_layout
+include roots_panel
 
 block content
   .page-heading
@@ -13,10 +14,10 @@ block content
   if error
     .alert.alert-danger= error
   else
-    if !monitor.service.planetMatches || monitor.service.publicPlanetCount
+    if !monitor.service.planetMatches || !monitor.service.rootConfigAvailable || monitor.service.unexpectedPlanetCount
       .alert.alert-danger.monitor-alert
         strong= t('monitor.planet_problem')
-        p= t('monitor.planet_problem_desc', {count: monitor.service.publicPlanetCount})
+        p= t('monitor.planet_problem_desc', {count: monitor.service.unexpectedPlanetCount === null ? '—' : monitor.service.unexpectedPlanetCount})
     if monitor.summary.bridgeMemberCount
       .alert.alert-warning.monitor-alert
         strong= t('monitor.bridge_warning', {count: monitor.summary.bridgeMemberCount})
@@ -28,7 +29,7 @@ block content
           span.glyphicon.glyphicon-hdd
         .stat-content
           span.stat-label= t('monitor.private_root')
-          strong(class=monitor.service.planetMatches && monitor.service.publicPlanetCount === 0 ? 'text-success' : 'text-danger')= monitor.service.planetMatches && monitor.service.publicPlanetCount === 0 ? t('monitor.healthy') : t('monitor.abnormal')
+          strong(class=monitor.service.planetMatches && monitor.service.unexpectedPlanetCount === 0 ? 'text-success' : 'text-danger')= monitor.service.planetMatches && monitor.service.unexpectedPlanetCount === 0 ? t('monitor.healthy') : t('monitor.abnormal')
       .stat-card.monitor-stat
         .stat-icon
           span.glyphicon.glyphicon-signal
@@ -48,6 +49,8 @@ block content
           span.stat-label= t('monitor.probe_relay')
           strong= monitor.probe.available ? monitor.summary.probeRelayCount : '—'
 
+    +roots_panel(topology, uiListeners)
+
     .row.monitor-card-row
       .col-md-6
         section.surface-card.monitor-card
@@ -66,8 +69,8 @@ block content
               span= t('monitor.planet_hash')
               strong= monitor.service.planetMatches ? t('monitor.consistent') : t('monitor.inconsistent')
             .detail-item
-              span= t('monitor.public_roots')
-              strong= monitor.service.publicPlanetCount
+              span= t('monitor.unexpected_roots')
+              strong= monitor.service.unexpectedPlanetCount === null ? '—' : monitor.service.unexpectedPlanetCount
             .detail-item
               span= t('dashboard.tcp_fallback')
               strong= monitor.service.tcpFallbackActive ? t('dashboard.active') : t('dashboard.inactive')

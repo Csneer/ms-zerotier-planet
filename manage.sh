@@ -290,6 +290,14 @@ cmd_doctor() {
     docker compose version >/dev/null 2>&1 || die 'Docker Compose v2 is required'
     docker info >/dev/null 2>&1 || die 'cannot connect to the Docker daemon'
     load_config
+    value=$(config_value ".services.${SERVICE}.environment.PLANET_MODE // \"generated\"")
+    case "$value" in generated|external) ;; *) die 'PLANET_MODE must be generated or external' ;; esac
+    if [[ "$value" == external ]]; then
+        source=$(mount_source /app/config)
+        [[ -s "$source/planet" ]] || die 'External mode requires config/planet; generate and verify a bundle first'
+    fi
+    value=$(config_value ".services.${SERVICE}.environment.ROOT_ONLY // \"0\"")
+    case "$value" in 0|1) ;; *) die 'ROOT_ONLY must be 0 or 1' ;; esac
     ip=$(config_value ".services.${SERVICE}.environment.IP_ADDR4")
     [[ "$ip" != 203.0.113.10 && -n "$ip" ]] || die 'IP_ADDR4 still contains the example address'
     valid_ipv4 "$ip" || die "IP_ADDR4 is invalid: $ip"
@@ -325,7 +333,20 @@ cmd_doctor() {
         paths_overlap "$root" "$source" && die "BACKUP_DIR overlaps persistent data: $root and $source"
     done
     host=$(config_value ".services.${SERVICE}.environment.HTTP_HOST")
-    [[ "$host" != 0.0.0.0 ]] || warn 'HTTP_HOST=0.0.0.0 exposes the management UI; restrict it with a firewall or reverse proxy'
+    [[ "$host" == localhost ]] || valid_ipv4 "$host" || valid_ipv6 "$host" || die 'HTTP_HOST must be an explicit IP or localhost'
+    value=$(config_value ".services.${SERVICE}.environment.HTTP_EXTRA_HOSTS // \"\"")
+    if [[ -n "$value" ]]; then
+        [[ "$host" != 0.0.0.0 && "$host" != :: ]] || die 'Wildcard HTTP_HOST cannot be combined with HTTP_EXTRA_HOSTS'
+        local -a extra_hosts=()
+        IFS=',' read -r -a extra_hosts <<<"$value"
+        for ip in "${extra_hosts[@]}"; do
+            ip=${ip//[[:space:]]/}
+            [[ -n "$ip" ]] || continue
+            [[ "$ip" != 0.0.0.0 && "$ip" != :: ]] || die 'HTTP_EXTRA_HOSTS cannot contain wildcard addresses'
+            [[ "$ip" == localhost ]] || valid_ipv4 "$ip" || valid_ipv6 "$ip" || die 'HTTP_EXTRA_HOSTS requires comma-separated IPs, not a subnet'
+        done
+    fi
+    [[ "$host" != 0.0.0.0 && "$host" != :: ]] || warn 'Wildcard HTTP_HOST exposes the management UI; restrict it with a firewall or reverse proxy'
     log 'Docker, Compose and configuration checks passed'
 }
 
@@ -346,9 +367,10 @@ cmd_up() {
 }
 
 cmd_upgrade() {
-    local old_id image rollback_tag
+    local old_id image rollback_tag planet_mode
     cmd_doctor
     image=$(image_name)
+    planet_mode=$(config_value ".services.${SERVICE}.environment.PLANET_MODE // \"generated\"")
     old_id=$(docker inspect "$(container_name)" --format '{{.Image}}' 2>/dev/null || true)
     prepare_image
     if [[ -n "$old_id" ]]; then
@@ -362,6 +384,13 @@ cmd_upgrade() {
         return
     fi
 
+    if [[ -n "$old_id" && "$planet_mode" == external ]]; then
+        # An older image may not understand PLANET_MODE=external and can
+        # regenerate/overwrite a signed multi-root world as a single-root
+        # planet. Keep the old image tagged for an operator-reviewed recovery,
+        # but never activate it automatically after an external-mode failure.
+        die "external Planet upgrade failed; automatic rollback is disabled (review ${rollback_tag} and backup: ${LAST_BACKUP})"
+    fi
     if [[ -n "$old_id" ]]; then
         warn 'new container failed; restoring the previous image'
         docker tag "$old_id" "$image"

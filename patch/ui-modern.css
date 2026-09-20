@@ -238,6 +238,17 @@ a:hover, a:focus { color: var(--primary-dark); text-decoration: none; }
 .monitor-summary-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 15px; margin: 0 0 20px; }
 .monitor-stat { min-height: 108px; margin: 0; }
 .monitor-stat .stat-content strong { font-size: 20px; }
+.monitor-root-card { margin: 0 0 22px; }
+.monitor-topology-meta { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 15px; padding: 0 15px 18px; }
+.monitor-root-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; padding: 0 15px 15px; }
+.monitor-root-item { min-width: 0; padding: 15px; border: 1px solid #e4eaf2; border-radius: 12px; background: #fbfcfe; }
+.monitor-root-item.is-local { border-color: #bce8d7; background: #f5fcf8; }
+.monitor-root-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+.monitor-root-heading code { display: block; margin-top: 5px; overflow-wrap: anywhere; }
+.monitor-root-detail { display: grid; grid-template-columns: minmax(110px, auto) 1fr; gap: 10px; align-items: baseline; margin-top: 11px; color: var(--muted); }
+.monitor-root-detail strong, .monitor-root-detail code { color: var(--ink); overflow-wrap: anywhere; }
+.monitor-root-detail small { margin-left: 7px; color: var(--muted); }
+.monitor-listener { display: block; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 12px; overflow-wrap: anywhere; }
 .monitor-card-row { display: flex; flex-wrap: wrap; }
 .monitor-card-row > [class*="col-"] { display: flex; }
 .monitor-card { width: 100%; min-height: 365px; margin-bottom: 22px; }
@@ -306,6 +317,8 @@ a:hover, a:focus { color: var(--primary-dark); text-decoration: none; }
   .monitor-card-row { display: block; }
   .monitor-card-row > [class*="col-"] { display: block; }
   .monitor-card { min-height: 0; }
+  .monitor-root-grid { grid-template-columns: 1fr; }
+  .monitor-topology-meta { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 767px) {
   .app-navbar { min-height: 64px; }

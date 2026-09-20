@@ -17,6 +17,9 @@
 - 内置连接监控区分 Planet 服务器视角与可选本机探针视角，并展示 ZeroTier 流量指标。
 - 联合健康检查、进程监管、优雅退出和 Docker 日志轮转。
 - IP 或 ZeroTier 端口变化时保留 identity 与世界签名密钥，只重新签发 planet/moon。
+- 支持同一 Planet 的多 Root：统一离线签名、独立 Root 身份及 Root-only 实例，详见[多 Root 与切换方案](docs/multi-root.md)。
+- 多 Root 不等于 Controller 高可用或秒级切换：两机隔离实测中一次自动恢复约需 245 秒，部署时应按客户端版本与真实路径重新验收。
+- 首页与连接监控共用 Controller / World / Root 拓扑，区分近期回应、过期路径和不可用探针；同一后台可监听回环及多个明确的 ZeroTier 地址。
 - 安装、升级、备份、恢复和卸载均使用非破坏性脚本；危险操作需要显式 `--yes`。
 - GitHub Actions 自动构建 `amd64`/`arm64`，并发布到本仓库对应的 GHCR。
 
@@ -87,7 +90,7 @@ Web 默认只监听本机：
 http://127.0.0.1:3443
 ```
 
-如果需要从 ZeroTier 网络访问，把 `HTTP_HOST` 设置为服务器对应的 ZeroTier 地址，例如 `172.16.100.97`。当前版本不内置 HTTPS；需要 HTTPS 时应在受信网络中增加反向代理。
+如果需要从 ZeroTier 网络访问，把 `HTTP_HOST` 设置为服务器对应的 ZeroTier 地址，例如 `172.16.100.97`。需要同时监听多个明确地址时使用逗号分隔的 `HTTP_EXTRA_HOSTS`，例如 `HTTP_HOST=127.0.0.1`、`HTTP_EXTRA_HOSTS=172.16.100.97`；它不接受网段或 `0.0.0.0`。默认 Compose 未启用 HTTPS；需要 HTTPS 时推荐在受信网络中增加反向代理。
 
 ## 配置
 
@@ -108,13 +111,16 @@ http://127.0.0.1:3443
 | `BACKUP_DIR` | 校验备份的保存目录 |
 | `CONTAINER_NAME` | 容器名；同机多实例时必须分别设置 |
 | `IP_ADDR4` / `IP_ADDR6` | planet 对外发布的稳定地址 |
+| `PLANET_MODE` | `generated`：原单 Root 自动生成；`external`：使用 `config/planet` 的统一签名文件 |
+| `ROOT_ONLY` | `1`：只启动 Root，不开 Web UI；默认 `0` |
 | `ZT_PORT` | ZeroTier 主端口，默认 `9994` |
 | `API_PORT` | Web 管理端口，默认 `3443` |
 | `DEFAULT_NETWORK_MTU` | 新建网络默认 MTU，建议 `1280` |
 | `HTTP_HOST` | Web 监听地址，默认 `127.0.0.1`；也可绑定服务器的 ZeroTier 地址 |
+| `HTTP_EXTRA_HOSTS` | 额外的明确监听 IP，逗号分隔；缺失的局域网 IP 会重试，不会拖停主监听 |
 | `ZT_PROBE_ADDR` | 可选探针的本地 ZeroTier API，默认 `http://127.0.0.1:9993` |
 
-修改 `IP_ADDR4`、`IP_ADDR6` 或 `ZT_PORT` 后执行 `./manage.sh upgrade`。容器会保留原 identity 和 `.c25519` 签名密钥，生成时间戳更高的新 planet；客户端仍需重新下载并替换新的 `planet` 文件。
+单 Root `generated` 模式下，修改 `IP_ADDR4`、`IP_ADDR6` 或 `ZT_PORT` 后执行 `./manage.sh upgrade`。容器会保留原 identity 和 `.c25519` 签名密钥，生成时间戳更高的新 planet；客户端仍需重新下载并替换新的 `planet` 文件。多 Root `external` 模式必须统一签名发布，不能靠改环境变量重新生成，见[部署步骤](docs/multi-root.md)。
 
 建立自己的远程仓库后，请把 `SOURCE_REPOSITORY` 填为该仓库 URL；留空时 OCI source 标签也保持为空，不会冒充原上游发布物。
 
@@ -126,7 +132,7 @@ http://127.0.0.1:3443
 - `到 Planet 直连`：成员到 Planet 服务器有活动的物理路径，不代表成员与其他终端直连。
 - 探针 `DIRECT` / `RELAY` / `TCP RELAY`：服务器本机 ZeroTier 客户端到该成员的当前路径。探针只是一个观测点，不是所有终端的两两连接矩阵。
 - Planet 包速率与 UDP/TCP 流量：来自 ZeroTier 内置 Prometheus 指标，页面用相邻采样计算速率。
-- Planet 文件一致性与公共 Root 数量：运行中的 `planet` 应与下载页面分发的文件一致，私有 Root 正常运行时不应再连接公共 Root。
+- Planet 文件一致性与未声明 Root 数量：运行文件应与下载文件一致；按配置的公开 Root 清单识别异常上游，正常备用 Root 不会被误报为公共 Root。
 
 若要启用探针视角，把主机 ZeroTier 客户端的数据目录配置为 `ZT_PROBE_STATE_DIR`。Compose 会只读挂载该目录，并通过 `ZT_PROBE_ADDR` 查询本机 API。目录为空或 API 不可达时，监控页会显示“探针不可用”，不会影响主服务。
 
@@ -258,8 +264,8 @@ git pull --ff-only
 ## 安全注意事项
 
 - 不建议将 `3443/tcp` 直接暴露给整个公网；至少使用云安全组白名单。
-- 更推荐 `HTTP_HOST=127.0.0.1`，再由 Caddy/Nginx/Traefik 提供 HTTPS。
-- 需要通过 ZeroTier 网络直接管理时，可把 `HTTP_HOST` 绑定到服务器的 ZeroTier 地址；不要使用 `0.0.0.0`。
+- 更推荐 `HTTP_HOST=127.0.0.1`，再由 Caddy/Nginx/Traefik 提供 HTTPS；如需 ZeroTier 访问，再把实际地址加入 `HTTP_EXTRA_HOSTS`。
+- 回环和指定 ZeroTier 地址提供同一套账户、会话存储和管理模型；浏览器 Cookie 按主机隔离，换 IP 可能要重新登录。不要使用 `0.0.0.0`，除非有明确的防火墙白名单。
 - 不要提交 `.env`、`data/`、`backups/` 或任何 identity、`.c25519`、token 文件。
 - ztncui 上游已经停止积极维护；管理面应视为高权限内部服务。
 
