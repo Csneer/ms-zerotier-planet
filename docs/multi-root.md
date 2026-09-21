@@ -1,5 +1,7 @@
 # 同一 Planet、多 Root 与切换
 
+已有单 Root 项目迁移到本项目的保守步骤见[原有 Planet 原地升级](in-place-upgrade.md)。本文重点说明统一签名 World、独立 Root 身份和切换验证边界。
+
 ## 适用范围
 
 一个签名的 Planet 可以列出多个不同身份的 Root。客户端仍加入原来的 Network ID，保留原 Controller 的授权、路由和地址分配，因此不必另建 `172.16.101.0/24`，也不必在服务配置里切换 `172.16.100.x`。
@@ -38,6 +40,24 @@
 
 `IP_ADDR4`、`IP_ADDR6` 在 external 模式不会改写 Planet。对外地址/UDP 端口必须与签名 manifest 匹配；调整端点时必须重新发布签名文件。`ZT_PORT` 决定本地实际监听端口。
 
+## 从已有单 Root 项目原地接入
+
+当前项目可以接管已有的单 Root Planet/Controller 持久化目录。原地升级的目标是保留原 Controller identity、`controller.d/`、Network ID、成员授权、虚拟地址、Web 用户和 session key，再把镜像和管理脚本升级到当前版本；它不是把同一份目录复制到 B 后同时启动两个 Controller。
+
+完整的布局核对、仓库外备份、镜像准备和停旧接管命令以[原地升级指南](in-place-upgrade.md)为准。跨 Compose 工程时，旧容器停止后仍占用原名字，新实例需使用不同容器名，或经确认后将旧容器改为备份名称。不要使用 `docker compose down -v`，不要删除原 identity、签名密钥、Controller 或 Web 状态。
+
+日常升级保持现有 `PLANET_MODE`。旧单 Root 只有在原签名密钥、分发 Planet、World 与端点记录完整且匹配时，才能安全沿用 generated；已有多 Root 不能转回 generated。若当前可信私有 Planet 已包含本机 identity，可以用 external 接管该版本，不必重新签名；但扩展 Root 仍需原 World 的签名材料。不要把旧部署可能使用的内置公共 Planet 当成私有 World 的更新基线。材料或签名链不能确认时暂停迁移，不生成替代密钥。
+
+原地多 Root 接入顺序：
+
+1. B 使用专用空目录和新 `identity.secret/public`，不复制 A 的 `one/`、Controller 数据、Web 状态或 token。
+2. 发布者保留 A 的 Root identity，在 `roots.json` 中加入 B 的公开 identity 与真实公网 UDP 端点，运行 `planet-bundle.sh` 生成候选。
+3. 用 `mkworld --verify-update` 检查候选相对于当前 World 的签名链和更高时间戳，并核对 `SHA256SUMS`；输出目录必须是新目录，候选未验证前不能覆盖生产 `config/planet`。
+4. 在修改 A 的 `.env` 或 `config/planet` 前备份原状态，再把同一份候选分别放入 A/B 的专用 `config/planet`。A 使用 `external + ROOT_ONLY=0`，B 使用 `external + ROOT_ONLY=1`。Controller 保持单活。
+5. 先启动并独立验证 B，再及时滚动更新 A，核对 `peers`、公网 UDP 和隔离端点业务。不要让 A 长期以 generated 运行在已发布的多 Root World 上。升级脚本失败时，external 模式只保留备份和回滚标签，不自动激活旧镜像；人工恢复前必须确认旧镜像支持当前 signed World。
+
+如果只是更新当前源码而不增加 Root，审查并保存本地改动后执行 `git pull --ff-only`、`./manage.sh doctor`、`./manage.sh upgrade`，保持现有模式和数据路径。如果要把单 Root 转成多 Root，不能只改 `PLANET_MODE=external`；必须同时提供已验证的 `config/planet`，并确保其中包含本机 Root identity，否则入口脚本会拒绝启动。
+
 ## 发布流程
 
 以下是操作模板，先替换实际路径和镜像名；不是自动修改生产环境的脚本。
@@ -50,15 +70,19 @@
 6. 分批给客户端安装相同 Planet，重启该客户端 ZeroTier，确认两个 PLANET peer。不要同时操作承担唯一 SSH 通道的两台客户端。
 7. 验证实际中转路径并做断路演练。保留至少一条不依赖待停机主机的管理通道。
 
-B 身份准备示例（目录必须为新实例专用）：
+B 身份准备示例（镜像需已构建；目录必须为新实例专用，已有 identity 应沿用，不能重复生成）：
 
 ```bash
-install -d -m 0700 /srv/zt-root-b/one /srv/zt-root-b/config /srv/zt-root-b/dist
-test ! -e /srv/zt-root-b/one/identity.secret
-docker run --rm --network none --entrypoint zerotier-idtool \
-  -v /srv/zt-root-b/one:/work \
-  zerotier-planet:multi-root \
-  generate /work/identity.secret /work/identity.public
+(
+  set -eu
+  umask 077
+  install -d -m 0700 /srv/zt-root-b/one /srv/zt-root-b/config /srv/zt-root-b/dist
+  test -z "$(find /srv/zt-root-b/one -mindepth 1 -maxdepth 1 -print -quit)"
+  docker run --rm --network none --entrypoint zerotier-idtool \
+    -v /srv/zt-root-b/one:/work \
+    zerotier-planet:multi-root \
+    generate /work/identity.secret /work/identity.public
+)
 ```
 
 `roots.json` 只含公开数据。不要把 `identity.secret` 或 `initmoon` 生成的含签名密钥的完整 JSON 复制进去：
@@ -75,8 +99,9 @@ docker run --rm --network none --entrypoint zerotier-idtool \
 发布者的 `SIGNER_STATE` 必须含 `planet`、`previous.c25519`、`current.c25519`。如果 World 曾轮换更新密钥，应由熟悉该签名链的管理员准备与当前 world 匹配的 signer；脚本不会擅自生成替代密钥。
 
 ```bash
+install -d -m 0700 /srv/planet-releases
 ./planet-bundle.sh zerotier-planet:multi-root \
-  /srv/zt-root-a/one ./roots.json /srv/planet-releases/release-001
+  /srv/zerotier-planet/one ./roots.json /srv/planet-releases/release-001
 ```
 
 输出目录必须尚不存在，且不能位于 signer 内部；输出只有 `planet`、`roots.json`、`SHA256SUMS`。签名在无网络的临时内存文件系统里进行，原数据只读挂载，不会修改运行中的 Root。候选包用原世界要求的签名密钥验证，并强制提升时间戳。
@@ -89,8 +114,9 @@ docker run --rm --network none --entrypoint /usr/local/libexec/mkworld \
   --inspect /releases/release-001/planet
 
 docker run --rm --network none --entrypoint /usr/local/libexec/mkworld \
+  -v /srv/zerotier-planet/one:/signer:ro \
   -v /srv/planet-releases:/releases:ro zerotier-planet:multi-root \
-  --verify-update /releases/old/planet /releases/release-001/planet
+  --verify-update /signer/planet /releases/release-001/planet
 ```
 
 `--inspect` 检查序列化结构并输出公开元数据，不代表验证了来源。首次导入仍需要通过可信渠道核对 SHA-256；后续更新使用 `--verify-update` 验证签名、同一个 World ID 和更高时间戳。
@@ -124,8 +150,13 @@ HTTP_EXTRA_HOSTS=
 - 每个声明的 Root 的身份 ID、稳定 UDP 端点、本实例标记。
 - 服务器和可选本机客户端探针两个独立视角的实际路径、延迟、最近接收回应时间。
 - 管理监听地址及状态。一个 Root 出现在 peer 列表中、或者仍带有缓存的 `DIRECT` 路径，都不自动等于近期可达。
+- “切换准备度（观测）”：只有声明了远端 Root、当前本机服务或探针至少观测到一个远端 Root、且运行中的 World ID/时间戳与配置元数据一致时才显示为可观测。它是运维前置条件，不是客户端已经切换的承诺。
 
-Root 路径必须活跃且在最近 90 秒内收到回应才显示“近期有回应”；无回应、过期、尚未识别为 PLANET、探针不可用分别展示。这里的延迟是 ZeroTier peer 路径延迟，不是 HTTP 请求耗时，也不是全部业务流量的延迟。远端 Root 的 CPU、累计流量及所有客户端之间的路径不在这个观测范围内；当前流量卡片只统计本实例。
+Root 路径必须活跃且在最近 90 秒内收到回应才显示“近期有回应”；无回应、过期、尚未识别为 PLANET、探针不可用分别展示。服务器和探针任一侧看到远端 Root 时，切换准备度会标记对应证据来源（服务器、探针或两者）；两侧都没有有效回应时显示“未观测到备用 Root”。这里的延迟是 ZeroTier peer 路径延迟，不是 HTTP 请求耗时，也不是全部业务流量的延迟。远端 Root 的 CPU、累计流量及所有客户端之间的路径不在这个观测范围内；当前流量卡片只统计本实例。
+
+监控页还按 Controller 网络汇总成员数、已授权数、本实例已观测 peer 的活跃路径比例，以及可选本机探针观测到的 DIRECT/RELAY/未知数量。总数按网络成员记录累加，同一设备加入多个网络会重复计数。未观测到的成员单独列为未知，不计入本 Root 已观测路径可达率的分母；成员经其他 Root 通信时，不能把本 Root 的低比例当成全网离线。DIRECT/RELAY 只是路径观测，不等于业务连通性，也不能从 Controller 单方面生成终端两两直连矩阵；要判断 `.125` 与 `.175` 是否直连，仍需在端点查看 `peers` 或执行端到端探测。异常负延迟会被单独标记（正常未知值 `-1` 不告警），因为某些旧客户端可能把异常延迟带入 Root 选路。当前为按页面请求采样，不提供历史丢包率、SLA 或任意端点间流量统计。
+
+如果需要把“Root 路径可达”与“实际业务端口可达”分开，可将 [examples/endpoint-probes.json](../examples/endpoint-probes.json) 复制到持久化 `config/endpoint-probes.json`。监控会按配置执行最多 32 个、最多 8 路并发的 TCP connect，超时限制为 100–5000ms，每次页面采样另有约 10 秒总预算，建连后立即关闭。只接受不带接口 zone 的字面 IP，不做 DNS 解析、不执行远程命令；状态分为可达、拒绝、超时、不可达、禁用和配置无效。缺少文件时显示“未配置”，不会自动扫描端口。该结果仍只代表管理实例到目标 `IP:port` 的可达性，不代表 ZeroTier 直连、应用协议健康或流量经过哪个 Root。
 
 管理入口建议使用回环主监听，加上明确的 ZeroTier 地址：
 
@@ -171,11 +202,21 @@ HTTP_EXTRA_HOSTS=172.16.100.97
 4. 反向切换再验证；区分 Root 不可用、Controller 不可用、整机不可用。
 5. 不能把待测试的 ZeroTier 网络当作两个 Root 的唯一 underlay，然后宣称已经验证整个原网络的独立容灾。
 
+### 多 Root 的实际优化边界
+
+- 多 Root 负责上游冗余和中转选路，不提供 Controller 多主写入，也不是按 Planet 文件 Root 顺序的主备。Controller 仍应保持单活；备份数据可以同步，但不能同时运行同一 Controller identity。
+- 正常运行时应让所有签名 World 中的 Root 都可达，由客户端按路径质量选择。为了省某台 Root 的流量而在宿主机临时丢弃其 UDP，会让客户端仍看见该 Root，却可能在旧版本选路异常时黑洞；若要长期 B-only，应签发更高时间戳、只含 B 的候选 World，分批更新客户端，并准备更高时间戳的恢复 World。
+- 客户端兼容性应作为 Root 切换前置条件：至少抽样验证 Windows、Android/移动网络和旧版 1.12/1.14 客户端的 Root peers、真实中转和端到端业务，不要只看 Root `DIRECT` 或服务器收发计数。
+- 监控只能发现风险，不能把 Controller 视角伪装成端到端事实。更完整的自动化方案是部署受控端点探针，对关键节点对执行定时 ping/TCP/SSH 探测，并把结果与 Root path、负延迟和中转比例关联。
+
 离线回归测试（要求本机已构建测试镜像）：
 
 ```bash
 docker build -t zerotier-planet:multi-root .
 node tests/ui-models.cjs
+node tests/communication-stats.cjs
+node tests/endpoint-probes.cjs
+node tests/install-config.cjs
 node tests/root-status.cjs
 node tests/ui-listen.cjs
 node tests/manage-upgrade.cjs
@@ -184,6 +225,8 @@ sudo node tests/multi-root.mjs zerotier-planet:multi-root
 ```
 
 容器回归需要 root 读取 ZeroTier 自动收紧为 0700 的临时状态目录；不要为了通过测试放宽生产数据权限。该测试仅使用临时目录和 `--network none` 容器，覆盖双 Root 签名、递增时间戳、错误签名/私钥 identity/端口拒绝、仅公开文件的候选包、external 启动/升级/旧版本拒绝、原单 Root Web 服务启动、双地址共享后台、中英文页面、登录保护和拓扑数据异常时的页面降级。
+
+同一测试还覆盖当前镜像 generated 单 Root → external 双 Root 的同挂载转换：World ID 保持、时间戳增加，原 identity、签名密钥、Controller 网络/成员授权/固定 IP 和 Web 密码/别名/session key 保留。它不代表任意历史镜像均可直接替换，也不衡量真实公网切流时间。`install-config.cjs` 单独验证 external 暂存、已有 `.env` 复用及严格启动前置检查，不启动服务。
 
 ### 2026-09-20 两机隔离实验记录
 

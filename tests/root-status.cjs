@@ -1,7 +1,8 @@
 'use strict';
 
 const assert = require('node:assert/strict');
-const {build, observation} = require('../patch/rootStatus');
+const rootStatus = require('../patch/rootStatus');
+const {build, observation, failoverSummary, rootEvidence} = rootStatus;
 
 const now = 1789900000000;
 const local = '1111111111';
@@ -33,8 +34,19 @@ for (const latency of [undefined, null, '', true, false, {}, [], Infinity, -1]) 
 }
 assert.equal(observed({latency: 0}).latency, 0);
 assert.equal(observed({latency: '7'}).latency, 7);
+assert.equal(observed({latency: -344}).latency, null);
+assert.equal(observed({latency: -344}).latencyAnomaly, true);
+assert.equal(observed({latency: -306}).latencyAnomaly, true);
+assert.equal(observed({latency: -1}).latencyAnomaly, false);
+assert.equal(observed({latency: '-1'}).latencyAnomaly, false);
+assert.equal(observed({latency: 7}).latencyAnomaly, false);
 assert.equal(observed({role: 'LEAF'}).state, 'unrecognized');
 assert.equal(observed({role: 'LEAF'}).latency, null);
+assert.equal(rootEvidence({local: true, service: {state: 'local'}, probe: {state: 'unseen'}}), 'local');
+assert.equal(rootEvidence({local: false, service: {state: 'reachable'}, probe: {state: 'unseen'}}), 'server');
+assert.equal(rootEvidence({local: false, service: {state: 'unseen'}, probe: {state: 'reachable'}}), 'probe');
+assert.equal(rootEvidence({local: false, service: {state: 'reachable'}, probe: {state: 'reachable'}}), 'both');
+assert.equal(rootEvidence({local: false, service: {state: 'stale'}, probe: {state: 'unseen'}}), 'none');
 assert.equal(observed({paths: [null, undefined, false, {}, activePath]}).state, 'reachable');
 assert.equal(observed({paths: [{...activePath, address: {secret: 'test-secret'}}]}).path, null);
 const alternate = {...activePath, address: '198.51.100.2/9994', preferred: false};
@@ -57,11 +69,34 @@ assert.equal(model.roots[1].service.state, 'reachable');
 assert.equal(model.roots[1].probe.state, 'stale', 'each observer must use its own clock');
 assert.equal(model.reachableCount, 2);
 assert.equal(model.probeReachableCount, 0);
+assert.equal(model.failover.state, 'ready');
+assert.equal(model.failover.remoteReadyCount, 1);
+assert.equal(model.failover.ready, true);
+const unknownWorld = build(metadata, {address: local, clock: now}, [peer], null, {});
+assert.equal(unknownWorld.failover.state, 'world_unknown');
+assert.equal(unknownWorld.failover.ready, false);
+const anomaly = rootStatus.build(metadata, service, [{...peer, latency: -344}], null, {});
+assert.deepEqual(anomaly.warnings.negativeLatencyRoots, [other]);
+assert.equal(build(metadata, service, [{...peer, latency: -1}], null, {}).warnings.negativeLatencyCount, 0);
 assert.equal(model.worldId, model.runtimeWorldId);
 assert.notEqual(build(metadata, {...service, planetWorldId: 149604619}, [], null, {}).runtimeWorldId, metadata.id,
   'the UI must be able to detect a different runtime World ID even at the same timestamp');
+const mismatch = build(metadata, {...service, planetWorldId: 149604619}, [peer], null, {});
+assert.equal(mismatch.failover.state, 'world_mismatch');
+assert.equal(mismatch.failover.ready, false);
 assert.equal(build(metadata, null, null, null, null).controllerId, null);
 assert.equal(build(metadata, service, [], null, {ROOT_ONLY: '1'}).controllerId, null);
+assert.equal(build(metadata, service, [], null, {CONTROLLER_ONLY: '1', PLANET_MODE: 'external'}).role, 'controller_only');
+assert.equal(build(metadata, service, [], null, {ROOT_ONLY: '1'}).role, 'root_only');
+assert.equal(build(metadata, service, [], null, {}).role, 'controller_root');
+const ready = build(metadata, service, [peer], {available: true, status: {clock: now}, peers: [peer]}, {});
+assert.equal(ready.failover.state, 'ready');
+assert.equal(ready.failover.ready, true);
+assert.deepEqual(ready.failover.remoteReadyRootIds, [other]);
+assert.deepEqual(ready.failover.unreadyRootIds, []);
+assert.equal(failoverSummary([], true).state, 'unknown');
+assert.equal(failoverSummary([{id: local, local: true, ready: true}], true).state, 'single_root');
+assert.equal(failoverSummary([{id: local, local: true, ready: true}, {id: other, local: false, ready: false}], true).state, 'no_remote');
 console.log('PASS: partial peer/probe responses degrade safely; local and probe observations stay independent');
 
 for (const root of [null, {}, {...metadata.roots[0], identity: [`${local}:0:aa`]},

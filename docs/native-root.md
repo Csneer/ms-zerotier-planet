@@ -1,6 +1,6 @@
 # 使用系统 ZeroTier 部署独立 Root-only
 
-备用机已经安装 `zerotier-one` 时，可以复用二进制，用独立身份、数据目录和 systemd unit 运行第二个实例。只需要传输公开的签名 Planet 包和小型配置文件，不必下载完整 Web/Controller 镜像。
+备用机已经安装 `zerotier-one` 时，可以复用二进制，用独立身份、数据目录和 systemd unit 运行第二个实例。只需要传输公开的签名 Planet 包和小型配置文件，不必下载完整 Web/Controller 镜像。它是现有单 Root 项目原地扩展 Root B 的一种方式，不复制原 Controller，也不需要改变客户端 Network ID 或虚拟 IP。
 
 这适合[同一 Planet、多 Root](multi-root.md)中的备用 Root B。它不复制 Controller，不更换原 Network ID，也不影响本机已经加入网络的普通 ZeroTier 客户端。管理页面仍由当前单活 Controller 提供。
 

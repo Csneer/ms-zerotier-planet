@@ -35,16 +35,19 @@ usage() {
 Usage: ./manage.sh COMMAND [options]
 
 Commands:
-  doctor                         Validate Docker, Compose, .env and mounts.
+  doctor [--staged]               Validate Docker, Compose, .env and mounts.
+                                 --staged permits pending external files; no start.
   build                          Build the configured local image.
   up                             Start the service without replacing data.
   upgrade                        Build/pull, back up, recreate and health-check.
-  status                         Show Compose, ZeroTier and network status.
+  status                         Show Compose, ZeroTier, World/Root and network status.
   logs [docker compose args]     Follow service logs (default: --tail 200 -f).
   restart                        Restart and wait for a healthy service.
   backup [--online]              Create a checksummed backup. Default is offline
                                  for a consistent snapshot and resumes service.
   restore BACKUP --yes           Back up current data, then restore BACKUP.
+  controller COMMAND             Manual Controller standby: stage/verify/status/fence/promote.
+  root COMMAND                   Prepare an independent Root or generate an add-only candidate.
   reset-password --yes           Back up users, reset to admin/password, restart.
   down                           Remove the container but preserve all data.
   uninstall [--purge-data --yes] Remove the container; data purge is opt-in and
@@ -54,6 +57,10 @@ Commands:
 IMAGE_SOURCE in .env controls upgrade behavior:
   build (default)  build the checked-out source with ./build.sh
   pull             pull ZT_IMAGE from its registry
+
+In-place upgrades keep existing bind mounts and identity; see docs/in-place-upgrade.md.
+Prepare independent Root identities and a verified config/planet before external up.
+external upgrades retain backups but never auto-activate an older image on failure.
 EOF
 }
 
@@ -237,6 +244,11 @@ backup_data() {
     fi
     {
         printf 'created_at=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+        if ((online == 0)); then
+            printf 'consistency=offline\n'
+        else
+            printf 'consistency=online\n'
+        fi
         printf 'repository_revision=%s\n' "$(git rev-parse HEAD 2>/dev/null || printf unknown)"
         printf 'image=%s\n' "$(image_name)"
         printf 'container=%s\n' "$name"
@@ -281,26 +293,37 @@ prepare_image() {
 }
 
 cmd_doctor() {
-    local ip ip6 host source target key value root
+    local ip ip6 host source target key value root planet_mode controller_only staged=0
     local -a sources=()
+    if (($#)); then
+        [[ $# == 1 && "$1" == --staged ]] || die 'usage: ./manage.sh doctor [--staged]'
+        staged=1
+    fi
     require_command bash
     require_command docker
     require_command jq
     require_command realpath
     docker compose version >/dev/null 2>&1 || die 'Docker Compose v2 is required'
-    docker info >/dev/null 2>&1 || die 'cannot connect to the Docker daemon'
-    load_config
-    value=$(config_value ".services.${SERVICE}.environment.PLANET_MODE // \"generated\"")
-    case "$value" in generated|external) ;; *) die 'PLANET_MODE must be generated or external' ;; esac
-    if [[ "$value" == external ]]; then
-        source=$(mount_source /app/config)
-        [[ -s "$source/planet" ]] || die 'External mode requires config/planet; generate and verify a bundle first'
+    if ((staged == 0)); then
+        docker info >/dev/null 2>&1 || die 'cannot connect to the Docker daemon'
     fi
+    load_config
+    planet_mode=$(config_value ".services.${SERVICE}.environment.PLANET_MODE // \"generated\"")
+    case "$planet_mode" in generated|external) ;; *) die 'PLANET_MODE must be generated or external' ;; esac
     value=$(config_value ".services.${SERVICE}.environment.ROOT_ONLY // \"0\"")
     case "$value" in 0|1) ;; *) die 'ROOT_ONLY must be 0 or 1' ;; esac
+    controller_only=$(config_value ".services.${SERVICE}.environment.CONTROLLER_ONLY // \"0\"")
+    case "$controller_only" in 0|1) ;; *) die 'CONTROLLER_ONLY must be 0 or 1' ;; esac
+    [[ "$controller_only" == 0 || "$value" == 0 ]] || die 'ROOT_ONLY and CONTROLLER_ONLY are mutually exclusive'
+    [[ "$controller_only" == 0 || "$planet_mode" == external ]] || die 'CONTROLLER_ONLY requires PLANET_MODE=external'
     ip=$(config_value ".services.${SERVICE}.environment.IP_ADDR4")
-    [[ "$ip" != 203.0.113.10 && -n "$ip" ]] || die 'IP_ADDR4 still contains the example address'
-    valid_ipv4 "$ip" || die "IP_ADDR4 is invalid: $ip"
+    if [[ "$controller_only" == 0 ]]; then
+        [[ "$ip" != 203.0.113.10 && -n "$ip" ]] || die 'IP_ADDR4 still contains the example address'
+        valid_ipv4 "$ip" || die "IP_ADDR4 is invalid: $ip"
+    else
+        [[ -z "$ip" || "$ip" != 203.0.113.10 ]] || die 'Controller-only IP_ADDR4 must be empty or a real address'
+        [[ -z "$ip" ]] || valid_ipv4 "$ip" || die "IP_ADDR4 is invalid: $ip"
+    fi
     ip6=$(config_value ".services.${SERVICE}.environment.IP_ADDR6")
     [[ -z "$ip6" ]] || valid_ipv6 "$ip6" || die "IP_ADDR6 is invalid: $ip6"
     [[ "$(config_value ".services.${SERVICE}.network_mode")" == host ]] || die 'network_mode must remain host for the optimized deployment'
@@ -332,6 +355,24 @@ cmd_doctor() {
     for source in "${sources[@]}"; do
         paths_overlap "$root" "$source" && die "BACKUP_DIR overlaps persistent data: $root and $source"
     done
+    if [[ "$planet_mode" == external ]]; then
+        source=$(mount_source /app/config)
+        if [[ ! -s "$source/planet" ]]; then
+            if ((staged)); then
+                warn 'Pending config/planet: install a verified signed bundle before doctor/up'
+            else
+                die 'External mode requires config/planet; generate and verify a bundle first'
+            fi
+        fi
+        source=$(mount_source /var/lib/zerotier-one)
+        if [[ ! -s "$source/identity.secret" ]]; then
+            if ((staged)); then
+                warn 'Pending Root identity: prepare an independent identity included in the signed Planet before up'
+            else
+                die 'External mode requires a prepared Root identity in one/identity.secret; do not copy another running Root identity'
+            fi
+        fi
+    fi
     host=$(config_value ".services.${SERVICE}.environment.HTTP_HOST")
     [[ "$host" == localhost ]] || valid_ipv4 "$host" || valid_ipv6 "$host" || die 'HTTP_HOST must be an explicit IP or localhost'
     value=$(config_value ".services.${SERVICE}.environment.HTTP_EXTRA_HOSTS // \"\"")
@@ -347,7 +388,11 @@ cmd_doctor() {
         done
     fi
     [[ "$host" != 0.0.0.0 && "$host" != :: ]] || warn 'Wildcard HTTP_HOST exposes the management UI; restrict it with a firewall or reverse proxy'
-    log 'Docker, Compose and configuration checks passed'
+    if ((staged)); then
+        log 'Staged configuration checks passed; daemon, World signature/identity and service health are not verified'
+    else
+        log 'Docker, Compose and configuration checks passed (World signature/identity verified at container startup)'
+    fi
 }
 
 cmd_build() {
@@ -414,6 +459,12 @@ cmd_status() {
             docker exec -e TOKEN="$token" -e ZT_API_PORT="$port" "$name" bash -lc '
                 curl -fsS -H "X-ZT1-Auth: $TOKEN" "http://127.0.0.1:$ZT_API_PORT/status" |
                     jq "{address,online,version,tcpFallbackActive}"
+                if test -s /app/config/planet-roots.json; then
+                    jq "{worldId:.id,timestamp,rootCount:(.roots|length),roots:[.roots[]|{id:(.identity|split(\":\")[0]),stableEndpoints}]}" \
+                        /app/config/planet-roots.json
+                fi
+                curl -fsS -H "X-ZT1-Auth: $TOKEN" "http://127.0.0.1:$ZT_API_PORT/peer" |
+                    jq "[.[]|select(.role==\"PLANET\")|{address,latency,paths:(.paths//[]|map({active,address,lastReceive,lastSend}))}]"
                 for nwid in $(curl -fsS -H "X-ZT1-Auth: $TOKEN" "http://127.0.0.1:$ZT_API_PORT/controller/network" | jq -r ".[]"); do
                     curl -fsS -H "X-ZT1-Auth: $TOKEN" "http://127.0.0.1:$ZT_API_PORT/controller/network/$nwid" |
                         jq "{nwid,name,mtu,revision}"
@@ -466,6 +517,8 @@ cmd_restore() {
     done
     (cd "$source" && sha256sum -c SHA256SUMS >/dev/null) || die 'backup checksum verification failed'
     cmd_doctor
+    [[ ! -e "$(mount_source /app/config)/controller-standby.json" ]] \
+        || die 'Managed Controller standby: use controller stage, not restore (which starts the service)'
     for target in "${targets[@]}"; do
         target=$(mount_source "$target")
         paths_overlap "$source" "$target" && die "backup source overlaps restore target: $source and $target"
@@ -617,6 +670,8 @@ case "$command_name" in
     restart) cmd_restart "$@" ;;
     backup) cmd_backup "$@" ;;
     restore) cmd_restore "$@" ;;
+    controller) require_command python3; exec python3 "$ROOT_DIR/scripts/controller_standby.py" "$@" ;;
+    root) exec bash "$ROOT_DIR/root-manage.sh" "$@" ;;
     reset-password) cmd_reset_password "$@" ;;
     down) cmd_down "$@" ;;
     uninstall) cmd_uninstall "$@" ;;

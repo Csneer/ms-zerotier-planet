@@ -13,3 +13,4 @@ authtoken.secret
 metricstoken.secret
 session.secret
 *.c25519
+__pycache__/

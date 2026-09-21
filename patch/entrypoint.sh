@@ -7,8 +7,10 @@ CONFIG_PATH=/app/config
 DIST_PATH=/app/dist
 ZTNCUI_PATH=/opt/ztncui/src
 ZTNCUI_STATE=/var/lib/ztncui
+ZT_ENDPOINT_PROBES_FILE=${ZT_ENDPOINT_PROBES_FILE:-/app/config/endpoint-probes.json}
 PLANET_MODE=${PLANET_MODE:-generated}
 ROOT_ONLY=${ROOT_ONLY:-0}
+CONTROLLER_ONLY=${CONTROLLER_ONLY:-0}
 
 log() { printf '[planet] %s\n' "$*"; }
 die() { log "ERROR: $*" >&2; exit 1; }
@@ -46,6 +48,33 @@ read_config() {
 discover_ip() {
     local url="$1"
     curl -4fsS --connect-timeout 3 --max-time 8 "$url" 2>/dev/null | tr -d '\r\n' || true
+}
+
+validate_standby_guard() {
+    local guard="${CONFIG_PATH}/controller-standby.json" state controller_id own_id
+    if [[ "$CONTROLLER_ONLY" == 1 && ! -e "$guard" && ! -L "$guard" ]]; then
+        die 'CONTROLLER_ONLY requires an active controller standby guard; stage and explicitly promote this instance first'
+    fi
+    [[ -e "$guard" || -L "$guard" ]] || return 0
+    [[ -f "$guard" && ! -L "$guard" && -s "$guard" ]] || die 'controller standby guard must be a nonempty regular file'
+    jq -e '
+        .schema == 1
+        and (.state | type == "string")
+        and (.state == "staged" or .state == "active" or .state == "fenced")
+        and .role == "controller-only"
+        and (.controllerId | type == "string" and test("^[0-9a-fA-F]{10}$"))
+        and (.instanceId | type == "string" and test("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"))
+    ' "$guard" >/dev/null || die 'invalid controller standby guard'
+    state=$(jq -r .state "$guard")
+    [[ "$state" == active ]] || die "controller standby guard is ${state}; refuse startup until promoted or fenced"
+    [[ "$CONTROLLER_ONLY" == 1 && "$ROOT_ONLY" == 0 ]] \
+        || die 'active controller standby guard requires CONTROLLER_ONLY=1 and ROOT_ONLY=0'
+    [[ -s "${ZEROTIER_PATH}/identity.secret" ]] \
+        || die 'active controller standby guard requires an existing ZeroTier identity'
+    own_id=$(zerotier-idtool getpublic "${ZEROTIER_PATH}/identity.secret" | cut -d: -f1 | tr '[:upper:]' '[:lower:]')
+    controller_id=$(jq -r .controllerId "$guard" | tr '[:upper:]' '[:lower:]')
+    [[ "$own_id" == "$controller_id" ]] \
+        || die "standby guard controllerId ${controller_id} does not match this identity ${own_id}"
 }
 
 generate_planet() {
@@ -100,8 +129,13 @@ activate_external_planet() {
     metadata=$(/usr/local/libexec/mkworld --inspect "$candidate") \
         || die 'Invalid external planet'
     own_identity=$(zerotier-idtool getpublic "${ZEROTIER_PATH}/identity.secret")
-    jq -e --arg identity "$own_identity" '.roots | any(.identity == $identity)' <<<"$metadata" >/dev/null \
-        || die 'This node identity is not a root in the supplied planet'
+    if [[ "$CONTROLLER_ONLY" == 1 ]]; then
+        jq -e --arg identity "$own_identity" '.roots | all(.identity != $identity)' <<<"$metadata" >/dev/null \
+            || die 'CONTROLLER_ONLY candidate still contains this identity as a Root; publish a newer World with this Root removed'
+    else
+        jq -e --arg identity "$own_identity" '.roots | any(.identity == $identity)' <<<"$metadata" >/dev/null \
+            || die 'This node identity is not a root in the supplied planet'
+    fi
     # First installation is explicitly trusted out of band. Subsequent changes
     # must extend the currently installed signature chain, never roll it back.
     if [[ -s "${ZEROTIER_PATH}/planet" ]] && ! cmp -s "$candidate" "${ZEROTIER_PATH}/planet"; then
@@ -161,6 +195,19 @@ trap shutdown INT TERM EXIT
 mkdir -p "$ZEROTIER_PATH" "$CONFIG_PATH" "$DIST_PATH" "$ZTNCUI_STATE"
 case "$PLANET_MODE" in generated|external) ;; *) die 'PLANET_MODE must be generated or external' ;; esac
 case "$ROOT_ONLY" in 0|1) ;; *) die 'ROOT_ONLY must be 0 or 1' ;; esac
+case "$CONTROLLER_ONLY" in 0|1) ;; *) die 'CONTROLLER_ONLY must be 0 or 1' ;; esac
+[[ "$ROOT_ONLY" == 0 || "$CONTROLLER_ONLY" == 0 ]] \
+    || die 'ROOT_ONLY and CONTROLLER_ONLY are mutually exclusive'
+[[ "$CONTROLLER_ONLY" == 0 || "$PLANET_MODE" == external ]] \
+    || die 'CONTROLLER_ONLY requires PLANET_MODE=external'
+validate_standby_guard
+if [[ "$CONTROLLER_ONLY" == 1 ]]; then
+    [[ -s "${ZEROTIER_PATH}/identity.secret" ]] \
+        || die 'CONTROLLER_ONLY requires an existing persistent ZeroTier identity; refusing to generate one'
+    if compgen -G "${ZEROTIER_PATH}/moons.d/*.moon" >/dev/null; then
+        die 'CONTROLLER_ONLY refuses stale local Moon files; archive/remove moons.d/*.moon offline before startup'
+    fi
+fi
 PREVIOUS_ZT_PORT="$(read_config zerotier-one.port)"
 PREVIOUS_IP_ADDR4="$(read_config ip_addr4)"
 PREVIOUS_IP_ADDR6="$(read_config ip_addr6)"
@@ -172,16 +219,27 @@ validate_port API_PORT "$API_PORT"
 write_config zerotier-one.port "$ZT_PORT"
 write_config ztncui.port "$API_PORT"
 
-IP_ADDR4="${IP_ADDR4:-${PREVIOUS_IP_ADDR4:-$(discover_ip https://ipv4.icanhazip.com/)}}"
+if [[ "$CONTROLLER_ONLY" == 1 || "$PLANET_MODE" == external ]]; then
+    IP_ADDR4="${IP_ADDR4:-$PREVIOUS_IP_ADDR4}"
+else
+    IP_ADDR4="${IP_ADDR4:-${PREVIOUS_IP_ADDR4:-$(discover_ip https://ipv4.icanhazip.com/)}}"
+fi
 if [[ -z "${IP_ADDR6+x}" ]]; then
     IP_ADDR6="$PREVIOUS_IP_ADDR6"
 fi
-[[ -n "$IP_ADDR4" || -n "$IP_ADDR6" ]] || die 'No public IPv4 or IPv6 address is available; set IP_ADDR4/IP_ADDR6 explicitly'
+# Controller-only instances do not publish a Root endpoint. Root instances in
+# generated mode still need an address so the signed World has a usable path.
+if [[ "$CONTROLLER_ONLY" == 0 && "$PLANET_MODE" == generated ]]; then
+    [[ -n "$IP_ADDR4" || -n "$IP_ADDR6" ]] \
+        || die 'No public IPv4 or IPv6 address is available; set IP_ADDR4/IP_ADDR6 explicitly'
+fi
 [[ -z "$IP_ADDR4" ]] || valid_ipv4 "$IP_ADDR4" || die "IP_ADDR4 is invalid: $IP_ADDR4"
 [[ -z "$IP_ADDR6" ]] || valid_ipv6 "$IP_ADDR6" || die "IP_ADDR6 is invalid: $IP_ADDR6"
 
 FRESH_IDENTITY=0
 if [[ ! -s "${ZEROTIER_PATH}/identity.secret" ]]; then
+    [[ "$CONTROLLER_ONLY" == 0 ]] \
+        || die 'CONTROLLER_ONLY requires an existing persistent ZeroTier identity; refusing to generate one'
     FRESH_IDENTITY=1
     if [[ "$PLANET_MODE" == external ]]; then init_external_identity; else init_zerotier; fi
 fi
@@ -211,6 +269,12 @@ else
     activate_private_planet
     /usr/local/libexec/mkworld --inspect "${ZEROTIER_PATH}/planet" > "${CONFIG_PATH}/planet-roots.json"
     chmod 0644 "${CONFIG_PATH}/planet-roots.json"
+fi
+if [[ "$CONTROLLER_ONLY" == 0 ]]; then
+    own_identity=$(zerotier-idtool getpublic "${ZEROTIER_PATH}/identity.secret")
+    jq -e --arg identity "$own_identity" '.roots | any(.identity == $identity)' \
+        "${CONFIG_PATH}/planet-roots.json" >/dev/null \
+        || die 'The active Planet does not contain this node as a Root'
 fi
 
 # Host networking avoids Docker's userland proxy/NAT on the hot UDP path. Do
@@ -258,6 +322,7 @@ HTTP_HOST=${HTTP_HOST:-127.0.0.1}
 HTTP_EXTRA_HOSTS=${HTTP_EXTRA_HOSTS:-}
 PLANET_MODE=${PLANET_MODE}
 ROOT_ONLY=${ROOT_ONLY}
+CONTROLLER_ONLY=${CONTROLLER_ONLY}
 NODE_ENV=production
 ZT_ADDR=http://127.0.0.1:${ZT_PORT}
 ZT_TOKEN=${TOKEN}
@@ -265,6 +330,7 @@ SESSION_SECRET=$(cat "${CONFIG_PATH}/session.secret")
 DEFAULT_NETWORK_MTU=${DEFAULT_NETWORK_MTU:-1280}
 ZT_PROBE_ADDR=${ZT_PROBE_ADDR:-http://127.0.0.1:9993}
 ZT_PROBE_TOKEN_FILE=${ZT_PROBE_TOKEN_FILE:-/run/zerotier-probe/authtoken.secret}
+ZT_ENDPOINT_PROBES_FILE=${ZT_ENDPOINT_PROBES_FILE}
 EOF
 chmod 0600 "${ZTNCUI_PATH}/.env"
 fi

@@ -6,6 +6,8 @@ const got = require('got');
 const storage = require('node-persist');
 const statusTools = require('../uiStatus');
 const rootStatus = require('../rootStatus');
+const communicationStats = require('../communicationStats');
+const endpointProbes = require('../endpointProbes');
 const zt = require('./zt');
 
 storage.initSync({dir: 'etc/storage'});
@@ -142,11 +144,12 @@ function formatAge(value) {
 }
 
 async function collect() {
-  const [serviceStatus, planetPeers, networks, probe] = await Promise.all([
+  const [serviceStatus, planetPeers, networks, probe, endpointProbeStatus] = await Promise.all([
     zt.get_zt_status(),
     zt.peers(),
     zt.network_list(),
-    getProbe()
+    getProbe(),
+    endpointProbes.collect()
   ]);
   const now = Number(serviceStatus.clock) || Date.now();
   const metrics = await readMetrics(now);
@@ -163,7 +166,9 @@ async function collect() {
         id, name: await storage.getItem(id) || '', networks: [], authorized: false,
         activeBridge: false, detail
       };
-      member.networks.push({nwid: network.nwid, name: network.name});
+      member.networks.push({nwid: network.nwid, name: network.name,
+        authorized: detail.authorized === true,
+        activeBridge: detail.activeBridge === true});
       member.authorized = member.authorized || detail.authorized === true;
       member.activeBridge = member.activeBridge || detail.activeBridge === true;
       member.detail = detail;
@@ -186,6 +191,7 @@ async function collect() {
       version,
       versionBehind: statusTools.compareVersions(version, serviceStatus.version) === -1,
       planet: {
+        observed: Boolean(planetPeer),
         reachable: statusTools.isPlanetReachable(planetPeer),
         latency: planetPeer && Number(planetPeer.latency) >= 0 ? Number(planetPeer.latency) : null,
         path: path && path.address,
@@ -200,6 +206,9 @@ async function collect() {
       }
     };
   }).sort((left, right) => left.id.localeCompare(right.id));
+
+  const networkStats = communicationStats.buildNetworkStats(networks, members, probe.available === true);
+  const communication = communicationStats.buildCommunicationSummary(networkStats, probe.available === true);
 
   let runtimeHash = null;
   let distributedHash = null;
@@ -227,10 +236,15 @@ async function collect() {
     probe,
     topology,
     metrics,
+    networkStats,
+    communication,
+    endpointProbes: endpointProbeStatus,
     members,
     summary: {
       networkCount: networks.length,
       memberCount: members.length,
+      planetObservedCount: members.filter(member => member.planet.observed).length,
+      planetUnknownCount: members.filter(member => !member.planet.observed).length,
       planetReachableCount: members.filter(member => member.planet.reachable).length,
       probeDirectCount: members.filter(member => member.probe.state === 'direct').length,
       probeRelayCount: members.filter(member => member.probe.state === 'relay' || member.probe.state === 'tcp_relay').length,

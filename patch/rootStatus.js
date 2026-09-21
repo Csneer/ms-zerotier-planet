@@ -51,7 +51,49 @@ function observation(peer, now) {
     state,
     lastReceiveMs: age,
     latency: state === 'reachable' && latency >= 0 ? latency : null,
+    // -1 is ZeroTier's normal "no latency sample" sentinel.
+    latencyAnomaly: Number.isFinite(latency) && latency < 0 && latency !== -1,
     path: path ? path.address : null
+  };
+}
+
+function isReachable(observation) {
+  return Boolean(observation) &&
+    (observation.state === 'reachable' || observation.state === 'local');
+}
+
+function rootEvidence(root) {
+  if (root.local) return 'local';
+  const service = isReachable(root.service);
+  const probe = isReachable(root.probe);
+  if (service && probe) return 'both';
+  if (service) return 'server';
+  if (probe) return 'probe';
+  return 'none';
+}
+
+function failoverSummary(roots, worldMatch) {
+  const remoteRoots = roots.filter(root => !root.local);
+  const readyRoots = roots.filter(root => root.ready);
+  const remoteReadyRoots = remoteRoots.filter(root => root.ready);
+  let state = 'unknown';
+  if (roots.length === 0) state = 'unknown';
+  else if (roots.length === 1) state = 'single_root';
+  else if (!remoteReadyRoots.length) state = 'no_remote';
+  else if (worldMatch === false) state = 'world_mismatch';
+  else if (worldMatch === null) state = 'world_unknown';
+  else state = 'ready';
+  return {
+    state,
+    ready: state === 'ready',
+    declaredRootCount: roots.length,
+    remoteRootCount: remoteRoots.length,
+    readyRootCount: readyRoots.length,
+    remoteReadyCount: remoteReadyRoots.length,
+    readyRootIds: readyRoots.map(root => root.id),
+    remoteReadyRootIds: remoteReadyRoots.map(root => root.id),
+    unreadyRootIds: roots.filter(root => !root.ready).map(root => root.id),
+    worldMatch
   };
 }
 
@@ -77,20 +119,37 @@ function build(metadata, service, peers, probe, env = process.env) {
   const roots = available ? metadata.roots.map(root => {
     const id = root.identity.split(':')[0].toLowerCase();
     const local = id === nodeId(service.address);
-    return {id, local, endpoints: root.stableEndpoints.slice(),
-      service: local ? {state: 'local', lastReceiveMs: 0, latency: null, path: null} : observation(byId.get(id), now),
-      probe: probeAvailable ? observation(probeById.get(id), probeNow) :
-        {state: 'unavailable', lastReceiveMs: null, latency: null, path: null}};
+    const serviceObservation = local ? {state: 'local', lastReceiveMs: 0, latency: null, latencyAnomaly: false, path: null} : observation(byId.get(id), now);
+    const probeObservation = probeAvailable ? observation(probeById.get(id), probeNow) :
+      {state: 'unavailable', lastReceiveMs: null, latency: null, latencyAnomaly: false, path: null};
+    const result = {id, local, endpoints: root.stableEndpoints.slice(),
+      service: serviceObservation, probe: probeObservation};
+    result.evidence = rootEvidence(result);
+    result.ready = result.evidence !== 'none';
+    return result;
   }) : [];
-  return {available, roots, worldId: available ? timestamp(metadata.id) : null,
-    timestamp: available ? timestamp(metadata.timestamp) : null,
-    runtimeWorldId: timestamp(service.planetWorldId),
-    runtimeTimestamp: timestamp(service.planetWorldTimestamp),
+  const runtimeWorldId = timestamp(service.planetWorldId);
+  const runtimeTimestamp = timestamp(service.planetWorldTimestamp);
+  const worldId = available ? timestamp(metadata.id) : null;
+  const worldTimestamp = available ? timestamp(metadata.timestamp) : null;
+  const worldMatch = available && runtimeWorldId !== null && runtimeTimestamp !== null &&
+    worldId !== null && worldTimestamp !== null
+    ? runtimeWorldId === worldId && runtimeTimestamp === worldTimestamp
+    : null;
+  const negativeLatencyRoots = roots.filter(root => root.service.latencyAnomaly || root.probe.latencyAnomaly)
+    .map(root => root.id);
+  return {available, roots, worldId,
+    timestamp: worldTimestamp,
+    runtimeWorldId,
+    runtimeTimestamp,
     mode: env.PLANET_MODE === 'external' ? 'external' : 'generated',
+    role: env.CONTROLLER_ONLY === '1' ? 'controller_only' : env.ROOT_ONLY === '1' ? 'root_only' : 'controller_root',
     controllerId: env.ROOT_ONLY === '1' ? null : nodeId(service.address),
     recentReceiveSeconds: RECENT_RECEIVE_MS / 1000,
     reachableCount: roots.filter(root => root.local || root.service.state === 'reachable').length,
-    probeReachableCount: roots.filter(root => root.probe.state === 'reachable').length};
+    probeReachableCount: roots.filter(root => root.probe.state === 'reachable').length,
+    failover: failoverSummary(roots, worldMatch),
+    warnings: {negativeLatencyRoots, negativeLatencyCount: negativeLatencyRoots.length}};
 }
 
-module.exports = {build, observation};
+module.exports = {build, observation, failoverSummary, rootEvidence};

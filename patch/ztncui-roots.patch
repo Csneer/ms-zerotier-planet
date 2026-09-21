@@ -15,7 +15,7 @@ diff --git a/src/controllers/networkController.js b/src/controllers/networkContr
      }
 +    let topology = {available: false, roots: [], worldId: null, timestamp: null,
 +      runtimeTimestamp: null, mode: process.env.PLANET_MODE || 'generated',
-+      controllerId: zt_status.address, recentReceiveSeconds: 90,
++      controllerId: zt_status.address, role: process.env.CONTROLLER_ONLY === '1' ? 'controller_only' : process.env.ROOT_ONLY === '1' ? 'root_only' : 'controller_root', recentReceiveSeconds: 90,
 +      reachableCount: 0, probeReachableCount: 0};
 +    try {
 +      topology = await monitoringController.collectRoots(zt_status);

@@ -5,6 +5,8 @@ mixin root_observation(observation)
     small.monitor-path-meta #{observation.latency} ms
   if observation.lastReceiveMs !== null && observation.state !== 'local'
     small.monitor-path-meta= t('monitor.root_received_ago', {age: formatAge(observation.lastReceiveMs)})
+  if observation.latencyAnomaly
+    span.risk-badge= t('monitor.root_latency_anomaly')
   if observation.path
     code.monitor-path= observation.path
 
@@ -31,12 +33,28 @@ mixin roots_panel(topology, listeners)
         span= t('monitor.publish_mode')
         strong= t('monitor.mode_' + topology.mode)
       .detail-item
+        span= t('monitor.runtime_role')
+        strong= t('monitor.role_' + (topology.role || 'controller_root'))
+      if topology.failover
+        .detail-item
+          span= t('monitor.failover_readiness')
+          span.path-badge(class=topology.failover.ready ? 'is-direct' : 'is-unknown')= t('monitor.failover_state_' + topology.failover.state)
+          small.monitor-path-meta #{topology.failover.remoteReadyCount} / #{topology.failover.remoteRootCount} #{t('monitor.failover_remote_ready')}
+      .detail-item
         span= t('monitor.http_listeners')
         each listener in listeners
           - const listenerHost = listener.host.includes(':') ? '[' + listener.host + ']' : listener.host;
           code.monitor-listener(class=listener.state === 'listening' ? 'text-success' : 'text-danger') #{listenerHost}:#{listener.port}
           small= t('monitor.listener_' + listener.state)
     if topology.available
+      if topology.failover && !topology.failover.ready
+        .alert.alert-warning.monitor-alert
+          strong= t('monitor.failover_attention')
+          p= t('monitor.failover_attention_desc', {state: t('monitor.failover_state_' + topology.failover.state), count: topology.failover.remoteRootCount})
+      if topology.warnings && topology.warnings.negativeLatencyCount
+        .alert.alert-warning.monitor-alert
+          strong= t('monitor.root_latency_warning')
+          p= t('monitor.root_latency_warning_desc', {count: topology.warnings.negativeLatencyCount})
       .monitor-root-grid
         each root in topology.roots
           .monitor-root-item(class=root.local ? 'is-local' : '')
@@ -59,6 +77,10 @@ mixin roots_panel(topology, listeners)
               span= t('monitor.root_probe')
               div
                 +root_observation(root.probe)
+            .monitor-root-detail
+              span= t('monitor.root_failover_evidence')
+              div
+                span.path-badge(class=root.ready ? 'is-direct' : 'is-unknown')= t('monitor.root_evidence_' + root.evidence)
     else
       .card-heading-padded
         .alert.alert-warning= t('monitor.root_metadata_unavailable')

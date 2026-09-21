@@ -14,9 +14,16 @@ on:
       - manage.sh
       - uninstall.sh
       - planet-bundle.sh
+      - root-manage.sh
       - tests/**
       - patch/**
+      - docs/**
+      - examples/**
+      - README.md
+      - README.en.md
+      - CHANGELOG.md
       - .github/workflows/image-build.yml
+      - scripts/**
   pull_request:
     paths:
       - .dockerignore
@@ -29,9 +36,16 @@ on:
       - manage.sh
       - uninstall.sh
       - planet-bundle.sh
+      - root-manage.sh
       - tests/**
       - patch/**
+      - docs/**
+      - examples/**
+      - README.md
+      - README.en.md
+      - CHANGELOG.md
       - .github/workflows/image-build.yml
+      - scripts/**
   schedule:
     - cron: "23 3 * * 1"
   workflow_dispatch:
@@ -63,11 +77,16 @@ jobs:
         run: |
           cp .env.example .env
           sed -i 's/IP_ADDR4=203.0.113.10/IP_ADDR4=198.51.100.10/' .env
-          bash -n build.sh deploy.sh install.sh manage.sh uninstall.sh planet-bundle.sh patch/entrypoint.sh patch/healthcheck.sh
+          bash -n build.sh deploy.sh install.sh manage.sh uninstall.sh planet-bundle.sh root-manage.sh patch/entrypoint.sh patch/healthcheck.sh
           for source in patch/*.js; do node --check "$source"; done
           node --check tests/multi-root.mjs
           for source in tests/*.cjs; do node --check "$source"; done
+          python3 -m py_compile scripts/controller_standby.py tests/controller-standby.py
+          python3 tests/controller-standby.py
           node tests/ui-models.cjs
+          node tests/communication-stats.cjs
+          node tests/endpoint-probes.cjs
+          node tests/install-config.cjs
           node tests/root-status.cjs
           node tests/ui-listen.cjs
           node tests/manage-upgrade.cjs
@@ -133,6 +152,11 @@ jobs:
         # The daemon deliberately makes its bind-mounted state root-owned/0700.
         # Use root to inspect disposable state; do not relax production modes.
         run: sudo "$(command -v node)" tests/multi-root.mjs zerotier-planet:ci-test
+
+      - name: Verify independent Root onboarding and add-only candidate flow
+        # This test uses only disposable identities and a local image; it does
+        # not activate a candidate or touch a production signer.
+        run: sudo "$(command -v node)" tests/root-manage.cjs zerotier-planet:ci-test
 
       - name: Build and optionally publish
         uses: docker/build-push-action@v7

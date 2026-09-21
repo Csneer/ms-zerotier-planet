@@ -60,6 +60,8 @@ COPY patch/ui-modern.css /opt/ztncui/src/public/stylesheets/ui-modern.css
 COPY patch/uiLanguage.js /opt/ztncui/src/uiLanguage.js
 COPY patch/uiStatus.js /opt/ztncui/src/uiStatus.js
 COPY patch/rootStatus.js /opt/ztncui/src/rootStatus.js
+COPY patch/communicationStats.js /opt/ztncui/src/communicationStats.js
+COPY patch/endpointProbes.js /opt/ztncui/src/endpointProbes.js
 COPY patch/uiListen.js /opt/ztncui/src/uiListen.js
 COPY patch/www.js /opt/ztncui/src/bin/www
 COPY patch/*.pug /opt/ztncui/src/views/
@@ -85,6 +87,7 @@ ENV TZ=Asia/Shanghai \
     DEFAULT_NETWORK_MTU=1280 \
     HTTP_HOST=127.0.0.1 \
     HTTP_EXTRA_HOSTS= \
+    CONTROLLER_ONLY=0 \
     NODE_ENV=production
 
 RUN set -eux; \
@@ -108,6 +111,7 @@ COPY --from=mkworld-builder /src/ZeroTierOne/attic/world/mkworld /usr/local/libe
 COPY --from=ztncui-builder /opt/ztncui /opt/ztncui
 COPY patch/entrypoint.sh /usr/local/bin/entrypoint.sh
 COPY patch/healthcheck.sh /usr/local/bin/healthcheck.sh
+LABEL io.ms-zerotier-planet.controller-standby="1"
 
 RUN set -eux; \
     cp -a /opt/ztncui/src/etc/. /bak/ztncui-state/; \

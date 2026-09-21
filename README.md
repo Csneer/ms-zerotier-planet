@@ -2,7 +2,9 @@
 
 [English](README.en.md)
 
-这是一个面向长期自托管的 ZeroTier Planet、Controller 和 Web 管理控制台二次开发版。仓库使用 Docker Compose 管理单个 `myztplanet` 容器，默认从当前源码构建，不依赖第三方维护者发布的 `latest` 镜像。
+这是一个支持 **同一 Planet 多 Root 热切换与原地升级** 的 ZeroTier 自托管项目，包含 Planet、Controller 和统一 Web 管理控制台。这里的热切换指客户端使用备用 Root 恢复中转，不承诺无缝、秒级或既有 TCP 会话不中断；Controller 仍为单活。核对旧数据布局、身份与签名链后，可以保留原 Network ID、授权和虚拟 IP 接管已有 Planet 项目。
+
+每份 Compose 配置管理一个实例，备用机可以使用独立身份部署 Root-only，也可以按[Controller-only 手动备用指南](docs/controller-standby.md)准备同一 Controller 的人工接管副本。默认从当前源码构建，不依赖第三方维护者发布的 `latest` 镜像。已有部署请先阅读[原地升级指南](docs/in-place-upgrade.md)，不要按首次安装步骤初始化旧数据。
 
 项目以生产可维护性为核心，独立发布，不使用 GitHub Fork 关系。第三方组件、历史代码归属和许可证边界见 [NOTICE.md](NOTICE.md)。
 
@@ -15,6 +17,7 @@
 - 登录后直接下载 `planet` 和 `.moon` 文件，并显示 SHA-256。
 - identity、Controller 数据、Web 用户和 session key 全部持久化。
 - 内置连接监控区分 Planet 服务器视角与可选本机探针视角，并展示 ZeroTier 流量指标。
+- 多 Root 面板显示切换准备度、World 一致性和每个备用 Root 的观测证据；只做安全观测，不自动改防火墙或强制切流。
 - 联合健康检查、进程监管、优雅退出和 Docker 日志轮转。
 - IP 或 ZeroTier 端口变化时保留 identity 与世界签名密钥，只重新签发 planet/moon。
 - 支持同一 Planet 的多 Root：统一离线签名、独立 Root 身份及 Root-only 实例，详见[多 Root 与切换方案](docs/multi-root.md)。
@@ -36,7 +39,8 @@
 
 | 默认端口 | 协议 | 用途 | 建议暴露范围 |
 |---:|---|---|---|
-| 9994 | UDP/TCP | ZeroTier Planet/Controller | 公网；UDP 必须放行 |
+| 9994 | UDP | ZeroTier Planet Root 稳定端点 | 公网；每个 Root 的 UDP 端点必须放行 |
+| 9994 | TCP | ZeroTier 本地管理 API | 仅回环或受信来源；不要当作公网 HTTPS/业务入口 |
 | 3443 | TCP | Web 管理控制台 | 仅可信 IP、ZeroTier 网段或本机反代 |
 
 旧的 `3000/tcp` 文件服务已删除。`planet` 和 `.moon` 只通过登录后的 Web `Downloads` 页面分发。
@@ -45,12 +49,12 @@
 
 ## 首次安装
 
-从源码本地构建：
+从源码本地构建（将示例地址 `203.0.113.10` 换成服务器真实公网 IPv4）：
 
 ```bash
 git clone https://github.com/Csneer/ms-zerotier-planet.git
 cd ms-zerotier-planet
-./install.sh --ip <服务器公网IPv4>
+./install.sh --ip 203.0.113.10
 ```
 
 可选参数：
@@ -60,6 +64,30 @@ cd ms-zerotier-planet
   --ip 203.0.113.10 \
   --ipv6 2001:db8::10 \
   --data-dir /srv/zerotier-planet
+```
+
+以下在备用机的新 checkout 中执行（尚无 `.env`）。不要复用已有客户端或 Controller 数据目录：
+
+```bash
+CONTAINER_NAME=myztplanet-root-b ./install.sh --ip 203.0.113.20 \
+  --data-dir /srv/zt-root-b \
+  --image zerotier-planet:multi-root \
+  --planet-mode external --root-only 1 --configure-only
+```
+
+该命令只生成配置，不会替你生成多 Root 签名文件。必须先由可信发布者准备并验证 `config/planet`，再执行 `./manage.sh up`。备用 Root 不应运行 Controller，也不能与主 Controller 共享 `one/` 或 `controller.d/`。
+
+生成 B 的独立身份后，再把 `identity.public` 交给签名发布者；不能把 A 的 identity 复制过来：
+
+```bash
+./build.sh
+(
+  set -eu
+  test -z "$(find /srv/zt-root-b/one -mindepth 1 -maxdepth 1 -print -quit)"
+  docker run --rm --network none --entrypoint zerotier-idtool \
+    -v /srv/zt-root-b/one:/work \
+    zerotier-planet:multi-root generate /work/identity.secret /work/identity.public
+)
 ```
 
 只生成并检查 `.env`，不启动 Docker：
@@ -109,16 +137,18 @@ http://127.0.0.1:3443
 | `ZTNCUI_STATE_DIR` | Web 用户与设备别名目录 |
 | `ZT_PROBE_STATE_DIR` | 可选本机 ZeroTier 客户端状态目录，只读挂载供连接监控读取 token |
 | `BACKUP_DIR` | 校验备份的保存目录 |
-| `CONTAINER_NAME` | 容器名；同机多实例时必须分别设置 |
+| `CONTAINER_NAME` | 容器名；同机多实例或保留停机旧容器的跨工程接管需避免重名 |
 | `IP_ADDR4` / `IP_ADDR6` | planet 对外发布的稳定地址 |
 | `PLANET_MODE` | `generated`：原单 Root 自动生成；`external`：使用 `config/planet` 的统一签名文件 |
 | `ROOT_ONLY` | `1`：只启动 Root，不开 Web UI；默认 `0` |
+| `CONTROLLER_ONLY` | `1`：external 模式下的人工 Controller 备用；必须有 active standby guard，不承担 Root；默认 `0` |
 | `ZT_PORT` | ZeroTier 主端口，默认 `9994` |
 | `API_PORT` | Web 管理端口，默认 `3443` |
 | `DEFAULT_NETWORK_MTU` | 新建网络默认 MTU，建议 `1280` |
 | `HTTP_HOST` | Web 监听地址，默认 `127.0.0.1`；也可绑定服务器的 ZeroTier 地址 |
 | `HTTP_EXTRA_HOSTS` | 额外的明确监听 IP，逗号分隔；缺失的局域网 IP 会重试，不会拖停主监听 |
 | `ZT_PROBE_ADDR` | 可选探针的本地 ZeroTier API，默认 `http://127.0.0.1:9993` |
+| `ZT_ENDPOINT_PROBES_FILE` | 可选端点 TCP 探针配置，默认 `/app/config/endpoint-probes.json`；仅检查明确 IP 和端口 |
 
 单 Root `generated` 模式下，修改 `IP_ADDR4`、`IP_ADDR6` 或 `ZT_PORT` 后执行 `./manage.sh upgrade`。容器会保留原 identity 和 `.c25519` 签名密钥，生成时间戳更高的新 planet；客户端仍需重新下载并替换新的 `planet` 文件。多 Root `external` 模式必须统一签名发布，不能靠改环境变量重新生成，见[部署步骤](docs/multi-root.md)。
 
@@ -136,18 +166,34 @@ http://127.0.0.1:3443
 
 若要启用探针视角，把主机 ZeroTier 客户端的数据目录配置为 `ZT_PROBE_STATE_DIR`。Compose 会只读挂载该目录，并通过 `ZT_PROBE_ADDR` 查询本机 API。目录为空或 API 不可达时，监控页会显示“探针不可用”，不会影响主服务。
 
+端点业务探针是另一层可选观测：复制 [examples/endpoint-probes.json](examples/endpoint-probes.json) 到持久化 `config/endpoint-probes.json` 后，监控页会以受限并发执行只读 TCP connect，并在建连后立即关闭。配置只接受字面 IPv4/IPv6 地址（不接受带接口 zone 的 `%` 形式）、1–32 个目标和 100–5000ms 超时；每次采样另有约 10 秒总预算，超出的目标标记为超时。不解析 DNS、不执行 SSH/HTTP 命令，也不会扫描任意端口。TCP 成功只说明本管理实例到目标端口可达，不代表 ZeroTier 端点直连、业务协议健康或流量经过哪个 Root；未配置时不会自动探测。
+
 判断两台具体终端是否直连，仍应在其中一台终端运行 `zerotier-cli peers`，或结合实际端到端传输测试；中央控制器无法可靠推断任意终端对之间的实时路径。
+
+## 从已有 Planet 项目原地升级
+
+本项目提供保留原数据的升级路径，并非对任意旧镜像、任意目录布局的一键兼容。详细命令和验收清单以[原地升级指南](docs/in-place-upgrade.md)为准：
+
+1. 保留独立管理通道，检查旧容器真实挂载；备份 identity、`controller.d/`、签名密钥、Planet 各副本、端点配置、Web 用户和 session key。缺失文件先核查，不能让新实例初始化替代身份或签名链。
+2. 当前项目更新源码时保留 `.env`、挂载路径和现有 `PLANET_MODE`，执行 `doctor`、`upgrade`。旧项目跨 checkout 接管需使用绝对路径；旧容器停机后仍占用名字，应使用不同的新容器名或将旧容器改名保留，不能双开同一 identity。
+3. 仅在确认单 Root、签名材料及原端点配置完整时沿用 `generated`。已是多 Root 或 external 的实例必须保持 `external`；只有当前可信 Planet、没有签名密钥时可按指南核查后 external 接管，但不能签发新增 Root。不要一律改成 generated。
+4. 新增 B 时为它生成独立身份，用原 World 签名链生成含 A/B 的候选，验证签名、时间戳和哈希后预置到各 Root 的 `config/planet`；先准备并验证 B，再滚动更新 A。A 保持 Controller 单活，B 不复制 A 的 `one/`。
+5. 分批给客户端安装同一份 Planet，核对原 Network ID、IP 和授权保持，并用隔离客户端验证实际中转及恢复时间。`doctor` 不等于签名验证，签名链和本机 Root 身份匹配在候选校验及容器启动时验证。
+
+热切换不以 Root 列表顺序指定主备，不等于 Controller 多主。镜像回退也不等于 World 拓扑回退：拓扑恢复必须签发更高时间戳的新 World。
+
+完整的签名发布、Controller-only 手动备用、原生 Root-only systemd 部署和隔离切换验证见[原地升级指南](docs/in-place-upgrade.md)、[多 Root 与切换方案](docs/multi-root.md)、[Controller-only 手动备用](docs/controller-standby.md)、[Root 接入指南](docs/root-onboarding.md)及[系统 Root-only 部署](docs/native-root.md)。
 
 ## 日常维护
 
 ```bash
 ./manage.sh doctor                 # 配置与依赖检查
-./manage.sh status                 # 容器、ZeroTier 和网络状态
+./manage.sh status                 # 容器、ZeroTier、World/Root 和网络状态
 ./manage.sh logs                   # 跟随日志
 ./manage.sh restart                # 重启并等待 healthy
 ./manage.sh build                  # 只构建镜像
 ./manage.sh up                     # 启动已有镜像，不删除数据
-./manage.sh upgrade                # 构建/拉取、备份、切换、失败回滚
+./manage.sh upgrade                # 构建/拉取、备份、重建、健康检查（回滚依模式）
 ```
 
 升级本仓库代码后的推荐流程：
@@ -158,7 +204,7 @@ git pull --ff-only
 ./manage.sh upgrade
 ```
 
-`upgrade` 会先准备新镜像，再短暂停止旧容器生成一致性备份。新容器未通过健康检查时，会自动恢复上一镜像。
+`upgrade` 会先准备新镜像，再短暂停止旧容器生成一致性备份。`generated` 模式的新容器未通过健康检查时会尝试恢复上一镜像；`external` 模式只保留回滚标签和备份，必须人工确认镜像仍支持当前 signed World 后恢复。
 
 ## 备份与恢复
 
@@ -182,6 +228,7 @@ git pull --ff-only
 - `one/`：ZeroTier identity、签名密钥和 Controller 数据。
 - `config/`：端口、地址和 session key。
 - `ztncui-state/`：Web 用户和设备别名。
+- `probe-state/` 不在正式备份中：它只是可选的只读本机 ZeroTier 观测客户端状态，可在目标主机重新指定 `ZT_PROBE_STATE_DIR`；其中的 token 不属于 Controller/Root 数据。
 - `.env`、Compose 配置、容器信息与 `SHA256SUMS`。
 
 恢复前会先验证校验和并自动备份当前数据：
@@ -257,6 +304,7 @@ git pull --ff-only
 ├── uninstall.sh            # 安全卸载入口
 ├── deploy.sh               # 旧命令兼容层，不再包含旧部署逻辑
 ├── build.sh                # 本地/多架构镜像构建
+├── docs/                   # 原地升级、Controller 备用、Root 接入、多 Root 和 Root-only 运维文档
 ├── patch/                  # ZeroTier、ztncui 和 Web 定制
 └── .github/                # GHCR 发布与依赖更新
 ```
