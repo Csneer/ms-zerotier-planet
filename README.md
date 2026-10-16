@@ -281,15 +281,15 @@ git pull --ff-only
 
 替换文件前必须停止 ZeroTier；具体路径可能因客户端发行版而不同。
 
-## 镜像发布
+## 版本与镜像发布
 
-[image-build.yml](.github/workflows/image-build.yml) 会：
+项目采用独立的 SemVer 版本（`vX.Y.Z`）；首个版本为 `v1.0.0`，对应镜像 `ghcr.io/csneer/ms-zerotier-planet:v1.0.0`。它与 ZeroTier `1.16.2` 等运行时版本不同。变更见 [CHANGELOG](CHANGELOG.md)，维护者的身份配置、打 tag 和 GitHub Release 步骤见[发布约定](docs/releasing.md)。
 
-- 校验 Shell、Node 和 Compose 配置。
-- 在 `main`/`master` 推送、每周计划任务或手动触发时构建 `amd64`/`arm64`。
-- 从 ZeroTier 官方最新稳定 release 解析版本，或使用手动输入版本。
-- 发布到 `ghcr.io/csneer/ms-zerotier-planet`。
-- 生成 `latest`、ZeroTier 版本和 Git SHA 标签。
+[image-build.yml](.github/workflows/image-build.yml) 校验脚本、Compose 和容器回归后，构建 `amd64`/`arm64` 并发布到 GHCR：
+
+- 正式 `vX.Y.Z` tag 使用该 tag 的 `.env.example` 中的 `ZT_VERSION`（`v1.0.0` 为 `1.16.2`），只发布对应项目版本镜像，不更新滚动标签。
+- `main`/`master` 推送、每周计划任务和普通手动构建继续采用上游最新稳定 ZeroTier（手动构建可指定版本），生成 `latest`、ZeroTier 版本和 Git SHA 标签。
+- 需要固定实际部署内容时，记录并使用镜像 digest；版本 tag 本身不代表全部构建依赖均已锁定。
 
 如果 GHCR 包是私有的，部署主机需要先执行 `docker login ghcr.io`。Dependabot 每周检查 Docker 基础镜像和 GitHub Actions 版本。
 

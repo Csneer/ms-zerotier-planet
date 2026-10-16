@@ -2,7 +2,13 @@
 
 ## Unreleased
 
+## [1.0.0] - 2026-10-16
+
+First project release; earlier unversioned changes are collected here without inventing historical releases. Project versions are independent of ZeroTier versions.
+
 ### Added
+
+- Project SemVer tags, versioned GHCR images and a documented GitHub Release workflow; release tags select ZeroTier from their own `.env.example`.
 
 - External signed multi-root Planet mode, Root-only instances, offline public bundle generation and isolated regression tests.
 - One authenticated management model now shows Controller/World/Root topology, fresh-vs-stale Root observations, and shared multi-address LAN listeners.
@@ -27,6 +33,8 @@
 
 ### Changed
 
+- Pin `docker/login-action` to v4.5.2, following Dependabot PR #7.
+
 - Monitoring distinguishes declared backup Roots from unexpected upstream Roots.
 - Image publication runs offline signing/startup and authenticated single-/multi-root UI regressions before publishing.
 - ZeroTier runtime upgraded from 1.14.1 to 1.16.2.
@@ -38,6 +46,10 @@
 - The legacy unauthenticated `3000/tcp` file service has been removed; configuration downloads remain behind the Web login.
 - The Web console now listens on `127.0.0.1` by default and can be bound explicitly to a trusted ZeroTier address.
 
+### Fixed
+
+- CI checks each Bash script separately so syntax validation covers every listed file.
+
 ### Security
 
 - External Planet upgrades never automatically reactivate an older image after failure, preventing unaware entrypoints from overwriting a multi-root world.
@@ -46,3 +58,5 @@
 - Download implementations reject path traversal, non-regular files, and symbolic links.
 - Optional probe state is mounted read-only and its local API token is never exposed in the Web response.
 - Controller standby startup refuses missing/staged/fenced guards, stale Moon files, Root membership of a Controller-only identity and non-capability images.
+
+[1.0.0]: https://github.com/Csneer/ms-zerotier-planet/releases/tag/v1.0.0
