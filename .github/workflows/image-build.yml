@@ -3,6 +3,7 @@ name: Validate and publish image
 on:
   push:
     branches: [master, main]
+    tags: ['v*']
     paths:
       - .dockerignore
       - .env.example
@@ -77,7 +78,9 @@ jobs:
         run: |
           cp .env.example .env
           sed -i 's/IP_ADDR4=203.0.113.10/IP_ADDR4=198.51.100.10/' .env
-          bash -n build.sh deploy.sh install.sh manage.sh uninstall.sh planet-bundle.sh root-manage.sh patch/entrypoint.sh patch/healthcheck.sh
+          for source in build.sh deploy.sh install.sh manage.sh uninstall.sh planet-bundle.sh root-manage.sh patch/entrypoint.sh patch/healthcheck.sh; do
+            bash -n "$source"
+          done
           for source in patch/*.js; do node --check "$source"; done
           node --check tests/multi-root.mjs
           for source in tests/*.cjs; do node --check "$source"; done
@@ -104,8 +107,13 @@ jobs:
         env:
           REQUESTED_VERSION: ${{ inputs.zerotier_version }}
         run: |
-          version="${REQUESTED_VERSION}"
-          if [ -z "$version" ]; then
+          if [ "$GITHUB_REF_TYPE" = tag ]; then
+            [[ "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+            grep -Fq "## [${GITHUB_REF_NAME#v}] - " CHANGELOG.md
+            version=$(sed -n 's/^ZT_VERSION=//p' .env.example)
+          elif [ -n "$REQUESTED_VERSION" ]; then
+            version="$REQUESTED_VERSION"
+          else
             version=$(curl -fsSL https://api.github.com/repos/zerotier/ZeroTierOne/releases/latest | jq -r .tag_name)
           fi
           version=${version#v}
@@ -128,10 +136,14 @@ jobs:
         uses: docker/metadata-action@v6
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          flavor: latest=false
           tags: |
-            type=raw,value=latest,enable=${{ github.event_name != 'pull_request' }}
-            type=raw,value=${{ steps.version.outputs.version }}
-            type=sha
+            type=raw,value=latest,enable=${{ github.event_name != 'pull_request' && github.ref_type != 'tag' }}
+            type=raw,value=${{ steps.version.outputs.version }},enable=${{ github.ref_type != 'tag' }}
+            type=sha,enable=${{ github.ref_type != 'tag' }}
+            type=raw,value=${{ github.ref_name }},enable=${{ github.ref_type == 'tag' }}
+          labels: |
+            org.opencontainers.image.version=${{ github.ref_type == 'tag' && github.ref_name || steps.version.outputs.version }}
 
       - name: Build native image for offline regression
         uses: docker/build-push-action@v7

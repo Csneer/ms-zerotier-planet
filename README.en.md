@@ -241,13 +241,15 @@ Common paths:
 - Windows: `C:\ProgramData\ZeroTier\One\planet`
 - macOS: `/Library/Application Support/ZeroTier/One/planet`
 
-## Image publishing
+## Versions and image publishing
 
-The GitHub workflow validates scripts and Compose, builds `linux/amd64` and `linux/arm64`, resolves the latest stable ZeroTier release (or a manual version), and publishes `latest`, version, and Git SHA tags to:
+Project releases use independent SemVer tags (`vX.Y.Z`), starting with `v1.0.0` and image `ghcr.io/csneer/ms-zerotier-planet:v1.0.0`. These are distinct from runtime versions such as ZeroTier `1.16.2`. See the [changelog](CHANGELOG.md) and [release procedure (Chinese)](docs/releasing.md) for repository identity setup, tagging, and GitHub Releases.
 
-```text
-ghcr.io/csneer/ms-zerotier-planet
-```
+The [image workflow](.github/workflows/image-build.yml) validates scripts, Compose, and container regressions before building `linux/amd64` and `linux/arm64` images:
+
+- A release tag `vX.Y.Z` selects `ZT_VERSION` from that tag's `.env.example` (`1.16.2` for `v1.0.0`) and publishes only the project version image, leaving rolling tags unchanged.
+- Pushes to `main`/`master`, weekly builds, and ordinary manual builds continue to track the latest stable ZeroTier release (or a manually specified version), publishing `latest`, ZeroTier version, and Git SHA tags.
+- Record and deploy the image digest when exact image contents must remain fixed. A version tag does not mean every build dependency is locked.
 
 Private GHCR packages require `docker login ghcr.io` on the deployment host. Dependabot checks Docker base images and GitHub Actions weekly.
 
