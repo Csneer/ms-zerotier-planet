@@ -1,21 +1,23 @@
 extends head_layout
 
 block nav_items
-  +nav_item('controller_home', 'Dashboard', '/controller', 'dashboard')
-  +nav_item('networks', 'Networks', '/controller/networks', 'globe')
-  +nav_item('add_network', 'New network', '/controller/network/create', 'plus')
-  +nav_item('downloads', 'Downloads', '/controller/downloads', 'download-alt')
-  +nav_item('users', 'Users', '/users', 'user')
+  +nav_item('controller_home', t('nav.dashboard'), '/controller', 'dashboard')
+  +nav_item('monitor', t('nav.monitor'), '/controller/monitor', 'signal')
+  +nav_item('networks', t('nav.networks'), '/controller/networks', 'globe')
+  +nav_item('add_network', t('nav.new_network'), '/controller/network/create', 'plus')
+  +nav_item('downloads', t('nav.downloads'), '/controller/downloads', 'download-alt')
+  +nav_item('users', t('nav.users'), '/users', 'user')
 
 block body_content
   main.container.app-shell
     .page-heading
       div
-        span.eyebrow Access control
-        h1= title
+        span.eyebrow= t('users.eyebrow')
+        h1= t('users.title')
+        p= t('users.description')
       a.btn.btn-primary(href='/users/create')
         span.glyphicon.glyphicon-plus(aria-hidden='true')
-        |  Create user
+        |  #{t('users.create')}
     if error
       .alert.alert-danger= error
     else

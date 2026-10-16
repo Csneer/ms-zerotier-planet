@@ -1,0 +1,48 @@
+extends network_layout
+
+block net_content
+  - const memberId = member.id || member.address;
+  - const peer = member.peer;
+  - const online = peer && Number(peer.latency) >= 0 && (peer.versionMajor === undefined || peer.versionMajor !== -1);
+  section.surface-card.form-card
+    .card-heading
+      div
+        h2= t('member.detail_title')
+        p #{member.name || t('member.name')} · #{memberId}
+      span.member-status(class=online ? 'is-online' : 'is-offline')
+        span.status-dot
+        | #{online ? t('network.online') : t('network.offline')}
+
+    .detail-grid
+      .detail-item
+        span= t('member.name')
+        strong= member.name || t('common.none')
+      .detail-item
+        span= t('member.address')
+        code= memberId
+      .detail-item
+        span= t('network.authorized')
+        strong= member.authorized ? t('common.enabled') : t('common.disabled')
+      .detail-item
+        span= t('network.bridge')
+        strong= member.activeBridge ? t('common.enabled') : t('common.disabled')
+      .detail-item.detail-item-wide
+        span= t('network.ip_assignment')
+        if member.ipAssignments && member.ipAssignments.length
+          .ip-list
+            each ipAddress in member.ipAssignments
+              code= ipAddress
+        else
+          strong= t('network.no_ip')
+
+    .form-actions
+      a.btn.btn-primary(href='/controller/network/' + network.nwid + '/member/' + memberId + '/ipAssignments')= t('network.edit_ip')
+      a.btn.btn-default(href='/controller/network/' + network.nwid + '#members')= t('member.back')
+
+  details.surface-card.advanced-details
+    summary
+      span.glyphicon.glyphicon-console(aria-hidden='true')
+      span= t('common.advanced_data')
+    .advanced-details-body
+      p= t('common.raw_json_hint')
+      pre= JSON.stringify(member, null, 2)

@@ -4,6 +4,8 @@ set -Eeuo pipefail
 ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 ENV_FILE="$ROOT_DIR/.env"
 ENV_TMP=
+CREATED_ENV=0
+cd "$ROOT_DIR"
 
 cleanup() {
     [[ -z "$ENV_TMP" ]] || rm -f -- "$ENV_TMP"
@@ -27,12 +29,17 @@ Options:
   --data-dir PATH       Persistent data directory (default: ./data/zerotier).
   --image IMAGE         Image tag to build or pull.
   --pull                Pull --image instead of building locally.
-  --configure-only      Create and validate .env without starting Docker.
+  --planet-mode MODE    generated (single Root) or external (signed multi-Root).
+  --root-only 0|1       Start the Root-only service without Web UI (default: 0).
+  --controller-only 0|1 Use external Controller-only role with restored identity.
+  --configure-only      Stage and check .env; external identity/planet may be pending.
   -h, --help            Show this help.
 
 The installer never removes or overwrites an existing data directory. If .env
 already exists, it is preserved and command-line configuration options are
 rejected. Edit .env explicitly when changing an existing deployment.
+External mode requires a pre-generated independent Root identity and a verified
+config/planet containing it before startup. See docs/in-place-upgrade.md.
 EOF
 }
 
@@ -62,6 +69,9 @@ image_source="build"
 image_explicit=0
 configure_only=0
 configuration_requested=0
+planet_mode="${PLANET_MODE:-generated}"
+root_only="${ROOT_ONLY:-0}"
+controller_only="${CONTROLLER_ONLY:-0}"
 
 while (($#)); do
     case "$1" in
@@ -95,6 +105,24 @@ while (($#)); do
             configuration_requested=1
             shift
             ;;
+        --planet-mode)
+            (($# >= 2)) || die '--planet-mode requires generated or external'
+            planet_mode=$2
+            configuration_requested=1
+            shift 2
+            ;;
+        --root-only)
+            (($# >= 2)) || die '--root-only requires 0 or 1'
+            root_only=$2
+            configuration_requested=1
+            shift 2
+            ;;
+        --controller-only)
+            (($# >= 2)) || die '--controller-only requires 0 or 1'
+            controller_only=$2
+            configuration_requested=1
+            shift 2
+            ;;
         --configure-only)
             configure_only=1
             shift
@@ -115,9 +143,14 @@ else
     if [[ -z "$public_ip" && -t 0 ]]; then
         read -r -p 'Public IPv4 address: ' public_ip
     fi
-    [[ -n "$public_ip" ]] || die '--ip is required when creating .env'
-    valid_ipv4 "$public_ip" || die "invalid IPv4 address: $public_ip"
+    [[ -n "$public_ip" || "$controller_only" == 1 ]] || die '--ip is required when creating .env'
+    [[ -z "$public_ip" ]] || valid_ipv4 "$public_ip" || die "invalid IPv4 address: $public_ip"
     [[ -z "$public_ipv6" ]] || valid_ipv6 "$public_ipv6" || die "invalid IPv6 address: $public_ipv6"
+    case "$planet_mode" in generated|external) ;; *) die 'PLANET_MODE must be generated or external' ;; esac
+    case "$root_only" in 0|1) ;; *) die 'ROOT_ONLY must be 0 or 1' ;; esac
+    case "$controller_only" in 0|1) ;; *) die 'CONTROLLER_ONLY must be 0 or 1' ;; esac
+    [[ "$controller_only" == 0 || ( "$root_only" == 0 && "$planet_mode" == external ) ]] \
+        || die 'CONTROLLER_ONLY requires external mode and ROOT_ONLY=0'
     safe_env_value "$data_dir" || die 'data directory contains unsupported characters'
     [[ "$data_dir" != *[[:space:]]* ]] || die 'data directory must not contain whitespace'
 
@@ -146,9 +179,15 @@ else
         printf 'IP_ADDR6=%s\n' "$public_ipv6"
         printf 'ZT_PORT=%s\n' "${ZT_PORT:-9994}"
         printf 'API_PORT=%s\n' "${API_PORT:-3443}"
-        printf 'FILE_SERVER_PORT=%s\n' "${FILE_SERVER_PORT:-3000}"
         printf 'DEFAULT_NETWORK_MTU=%s\n' "${DEFAULT_NETWORK_MTU:-1280}"
-        printf 'HTTP_HOST=%s\n' "${HTTP_HOST:-0.0.0.0}"
+        printf 'HTTP_HOST=%s\n' "${HTTP_HOST:-127.0.0.1}"
+        printf 'HTTP_EXTRA_HOSTS=%s\n' "${HTTP_EXTRA_HOSTS:-}"
+        printf 'PLANET_MODE=%s\n' "$planet_mode"
+        printf 'ROOT_ONLY=%s\n' "$root_only"
+        printf 'CONTROLLER_ONLY=%s\n' "$controller_only"
+        printf 'ZT_PROBE_STATE_DIR=%s\n' "${ZT_PROBE_STATE_DIR:-${data_dir%/}/probe-state}"
+        printf 'ZT_PROBE_ADDR=%s\n' "${ZT_PROBE_ADDR:-http://127.0.0.1:9993}"
+        printf 'ZT_ENDPOINT_PROBES_FILE=%s\n' "${ZT_ENDPOINT_PROBES_FILE:-/app/config/endpoint-probes.json}"
         printf 'TZ=%s\n' "${TZ:-Asia/Shanghai}"
     } >"$ENV_TMP"
     chmod 0600 "$ENV_TMP"
@@ -157,15 +196,27 @@ else
     fi
     rm -f -- "$ENV_TMP"
     ENV_TMP=
+    CREATED_ENV=1
     printf 'Created %s\n' "$ENV_FILE"
 fi
 
-"$ROOT_DIR/manage.sh" doctor
+if ((CREATED_ENV)); then
+    install -d -m 0700 \
+        "${data_dir%/}/dist" \
+        "${data_dir%/}/one" \
+        "${data_dir%/}/config" \
+        "${data_dir%/}/ztncui-state" \
+        "${data_dir%/}/probe-state"
+fi
 
 if ((configure_only)); then
-    printf 'Configuration validated; Docker was not changed.\n'
+    # Resolve existing .env values and actual mounts through Compose, rather
+    # than using the defaults above (which only apply when creating .env).
+    "$ROOT_DIR/manage.sh" doctor --staged
+    printf 'Configuration staged; no service was started. Run ./manage.sh doctor after preparing external identity/planet files.\n'
     exit 0
 fi
 
+"$ROOT_DIR/manage.sh" doctor
 "$ROOT_DIR/manage.sh" up
 "$ROOT_DIR/manage.sh" status

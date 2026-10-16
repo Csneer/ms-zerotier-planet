@@ -1,28 +1,36 @@
 extends controller_layout
+include roots_panel
 
 block content
   if error
     .alert.alert-danger
-      strong Controller unavailable:
+      strong= t('dashboard.error')
       | #{error}
   else
     section.hero-card
       .hero-copy
-        span.eyebrow Private network control plane
-        h1 Your ZeroTier, under your control.
-        p Manage networks, authorize devices, tune MTU, and distribute Planet configuration from one place.
+        span.eyebrow= t('dashboard.eyebrow')
+        h1= t('dashboard.heading')
+        p= t('dashboard.description')
         .hero-actions
           a.btn.btn-primary.btn-lg(href='/controller/networks')
             span.glyphicon.glyphicon-globe(aria-hidden='true')
-            |  Manage networks
+            |  #{t('dashboard.manage_networks')}
           a.btn.btn-default.btn-lg(href='/controller/downloads')
             span.glyphicon.glyphicon-download-alt(aria-hidden='true')
-            |  Download Planet
-      .hero-status
-        span.status-pill(class=zt_status.online ? 'is-online' : 'is-offline')
-          span.status-dot
-          | #{zt_status.online ? 'ONLINE' : 'OFFLINE'}
-        small Controller status
+            |  #{t('dashboard.download_planet')}
+      .hero-status-group
+        .hero-status
+          span.status-pill(class=zt_status.online ? 'is-online' : 'is-offline')
+            span.status-dot
+            | #{zt_status.online ? t('dashboard.online') : t('dashboard.offline')}
+          small= t('dashboard.controller_status')
+        .hero-status
+          if dashboard_stats && dashboard_stats.available
+            strong.hero-status-value #{dashboard_stats.planetReachableMemberCount} / #{dashboard_stats.memberCount}
+          else
+            strong.hero-status-value —
+          small= dashboard_stats && dashboard_stats.available ? t('dashboard.planet_reachable_devices') : t('dashboard.stats_unavailable')
 
     .row.status-grid
       .col-sm-4
@@ -30,54 +38,63 @@ block content
           .stat-icon
             span.glyphicon.glyphicon-screenshot
           .stat-content
-            span.stat-label Node address
+            span.stat-label= t('dashboard.node_address')
             strong= zt_status.address
       .col-sm-4
         .stat-card
           .stat-icon
             span.glyphicon.glyphicon-tags
           .stat-content
-            span.stat-label ZeroTier version
+            span.stat-label= t('dashboard.zt_version')
             strong= zt_status.version
       .col-sm-4
         .stat-card
           .stat-icon
             span.glyphicon.glyphicon-transfer
           .stat-content
-            span.stat-label TCP fallback
-            strong= zt_status.tcpFallbackActive ? 'Active' : 'Not active'
+            span.stat-label= t('dashboard.tcp_fallback')
+            strong= zt_status.tcpFallbackActive ? t('dashboard.active') : t('dashboard.inactive')
+
+    +roots_panel(topology, uiListeners)
 
     .section-heading
       div
-        span.eyebrow Quick actions
-        h2 Everything important, one click away
+        span.eyebrow= t('dashboard.quick_actions')
+        h2= t('dashboard.quick_heading')
 
     .row.action-grid
+      .col-sm-6.col-lg-3
+        a.action-card(href='/controller/monitor')
+          span.action-icon.action-green
+            span.glyphicon.glyphicon-signal
+          strong= t('nav.monitor')
+          p= t('dashboard.monitor_description')
+          span.action-link= t('dashboard.open_monitor')
       .col-sm-6.col-lg-3
         a.action-card(href='/controller/networks')
           span.action-icon.action-blue
             span.glyphicon.glyphicon-globe
-          strong Networks
-          p View members, routes, address pools, and MTU settings.
-          span.action-link Open networks →
+          strong= t('nav.networks')
+          p= t('dashboard.networks_description')
+          span.action-link= t('dashboard.open_networks')
       .col-sm-6.col-lg-3
         a.action-card(href='/controller/network/create')
           span.action-icon.action-violet
             span.glyphicon.glyphicon-plus
-          strong New network
-          p Create a private network with the optimized 1280 MTU default.
-          span.action-link Create network →
+          strong= t('nav.new_network')
+          p= t('dashboard.new_network_description')
+          span.action-link= t('dashboard.create_network')
       .col-sm-6.col-lg-3
         a.action-card(href='/controller/downloads')
           span.action-icon.action-cyan
             span.glyphicon.glyphicon-download-alt
-          strong Configuration files
-          p Download Planet and Moon files with SHA-256 verification.
-          span.action-link View downloads →
+          strong= t('dashboard.config_files')
+          p= t('dashboard.config_description')
+          span.action-link= t('dashboard.view_downloads')
       .col-sm-6.col-lg-3
         a.action-card(href='/users')
           span.action-icon.action-green
             span.glyphicon.glyphicon-user
-          strong Administrators
-          p Manage Web console users and credentials.
-          span.action-link Manage users →
+          strong= t('dashboard.administrators')
+          p= t('dashboard.admin_description')
+          span.action-link= t('dashboard.manage_users')

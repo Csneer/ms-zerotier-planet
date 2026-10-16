@@ -1,0 +1,57 @@
+extends network_layout
+
+block net_content
+  section.surface-card.table-card.settings-card
+    .card-heading.card-heading-padded
+      div
+        h2= t('member.ip_title')
+        p #{member.name || t('member.name')} · #{member.id}
+        p= t('member.ip_description')
+
+    if errors
+      .alert.alert-danger.card-alert
+        ul.compact-list
+          each err in errors
+            li= localize_error(err.msg)
+
+    .table-responsive
+      table.table.app-table
+        thead
+          tr
+            th= t('member.ip_address')
+            th.text-right= t('common.actions')
+        tbody
+          if member.ipAssignments && member.ipAssignments.length
+            each ipAddress, index in member.ipAssignments
+              tr
+                td
+                  code= ipAddress
+                td.text-right
+                  a.btn.btn-link.btn-sm.danger-link(href='/controller/network/' + network.nwid + '/member/' + member.id + '/ipAssignments/' + index + '/delete' title=t('common.delete'))
+                    span.glyphicon.glyphicon-trash(aria-hidden='true')
+          else
+            tr
+              td.empty-table-cell(colspan='2')= t('network.no_ip')
+    .settings-form
+      h3= t('member.add_ip')
+      form(method='POST' action='')
+        .form-row.form-row-action
+          .form-group
+            label(for='ipAddress')= t('member.ip_address')
+            input#ipAddress.form-control(type='text' name='ipAddress' placeholder='10.11.12.10' value=(ipAssignment === undefined ? '' : ipAssignment.ipAddress))
+          button.btn.btn-primary(type='submit')= t('member.add_ip')
+
+    .settings-subsection
+      h3= t('member.routes_reference')
+      .table-responsive
+        table.table.app-table
+          thead
+            tr
+              th= t('routes.target')
+              th= t('routes.gateway')
+          tbody
+            each route in network.routes
+              tr
+                td
+                  code= route.target
+                td= route.via || t('routes.direct')

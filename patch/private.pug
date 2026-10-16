@@ -1,0 +1,38 @@
+extends network_layout
+
+block net_content
+  section.surface-card.form-card
+    .card-heading
+      div
+        h2= t('access.title')
+        p= t('access.description')
+
+    if error
+      .alert.alert-danger= error
+    if errors
+      .alert.alert-danger
+        ul.compact-list
+          each err in errors
+            li= localize_error(err.msg)
+
+    .setting-toggle
+      div
+        strong= t('access.enable')
+        p= t('access.warning')
+      label.switch-control.switch-control-large
+        input#privateCheckBox(type='checkbox' checked=Boolean(network.private))
+        span.switch-slider
+    p.auto-save-note
+      span.glyphicon.glyphicon-ok-circle(aria-hidden='true')
+      |  #{t('assign.saved_auto')}
+
+    script.
+      $(function() {
+        $('#privateCheckBox').on('change', function() {
+          var checkbox = this;
+          $(checkbox).prop('disabled', true);
+          $.post('', {private: checkbox.checked})
+            .fail(function() { checkbox.checked = !checkbox.checked; })
+            .always(function() { $(checkbox).prop('disabled', false); });
+        });
+      });

@@ -1,0 +1,54 @@
+extends network_layout
+
+block net_content
+  - const mode = network.v6AssignMode || {};
+  section.surface-card.form-card
+    .card-heading
+      div
+        h2= t('assign.ipv6_title')
+        p= t('assign.ipv6_description')
+
+    if error
+      .alert.alert-danger= error
+    if errors
+      .alert.alert-danger
+        ul.compact-list
+          each err in errors
+            li= localize_error(err.msg)
+
+    .setting-list
+      .setting-toggle
+        strong= t('assign.6plane')
+        label.switch-control.switch-control-large
+          input#6planeCheckBox.ipv6-mode(type='checkbox' checked=Boolean(mode['6plane']))
+          span.switch-slider
+      .setting-toggle
+        strong= t('assign.rfc4193')
+        label.switch-control.switch-control-large
+          input#rfc4193CheckBox.ipv6-mode(type='checkbox' checked=Boolean(mode.rfc4193))
+          span.switch-slider
+      .setting-toggle
+        strong= t('assign.auto_pool')
+        label.switch-control.switch-control-large
+          input#ztCheckBox.ipv6-mode(type='checkbox' checked=Boolean(mode.zt))
+          span.switch-slider
+    p.auto-save-note
+      span.glyphicon.glyphicon-ok-circle(aria-hidden='true')
+      |  #{t('assign.saved_auto')}
+
+    script.
+      $(function() {
+        $('.ipv6-mode').on('change', function() {
+          var changed = this;
+          $('.ipv6-mode').prop('disabled', true);
+          $.post('', {
+            '6plane': $('#6planeCheckBox').is(':checked'),
+            rfc4193: $('#rfc4193CheckBox').is(':checked'),
+            zt: $('#ztCheckBox').is(':checked')
+          }).fail(function() {
+            changed.checked = !changed.checked;
+          }).always(function() {
+            $('.ipv6-mode').prop('disabled', false);
+          });
+        });
+      });

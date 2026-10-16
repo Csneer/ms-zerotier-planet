@@ -2,9 +2,9 @@ extends login_layout
 
 block login_content
   .auth-heading
-    span.eyebrow Secure administration
-    h1 Welcome back
-    p Sign in to manage networks and download configuration files.
+    span.eyebrow= t('login.eyebrow')
+    h1= t('login.title')
+    p= t('login.description')
 
   if error
     .alert.alert-danger= error
@@ -14,15 +14,15 @@ block login_content
 
   form(method='POST' action='')
     .form-group
-      label(for='username') Username
+      label(for='username')= t('login.username')
       .input-group.input-group-lg
         span.input-group-addon
           i.glyphicon.glyphicon-user
-        input#username.form-control(type='text' name='username' placeholder='Enter your username' autocomplete='username' required=true autofocus=true)
+        input#username.form-control(type='text' name='username' placeholder=t('login.username_placeholder') autocomplete='username' required=true autofocus=true)
     .form-group
-      label(for='password') Password
+      label(for='password')= t('login.password')
       .input-group.input-group-lg
         span.input-group-addon
           i.glyphicon.glyphicon-lock
-        input#password.form-control(type='password' name='password' placeholder='Enter your password' autocomplete='current-password' required=true)
-    button.btn.btn-primary.btn-lg.btn-block(type='submit') Sign in
+        input#password.form-control(type='password' name='password' placeholder=t('login.password_placeholder') autocomplete='current-password' required=true)
+    button.btn.btn-primary.btn-lg.btn-block(type='submit')= t('login.button')

@@ -1,0 +1,30 @@
+extends network_layout
+
+block net_content
+  - const dns = network.dns || {};
+  section.surface-card.form-card
+    .card-heading
+      div
+        h2= t('dns.title')
+        p= t('dns.description')
+
+    if error
+      .alert.alert-danger= error
+    if errors
+      .alert.alert-danger
+        ul.compact-list
+          each err in errors
+            li= localize_error(err.msg)
+    if !dns.domain && !(dns.servers && dns.servers.length)
+      .alert.alert-info= t('dns.none')
+
+    form(method='POST' action='')
+      .form-group
+        label(for='domain')= t('dns.domain')
+        input#domain.form-control(type='text' name='domain' value=(dns.domain || ''))
+      .form-group
+        label(for='servers')= t('dns.servers')
+        textarea#servers.form-control(name='servers' rows='5' placeholder=t('dns.one_per_line'))= dns.servers ? dns.servers.join('\n') : ''
+      .form-actions
+        button.btn.btn-primary(type='submit')= t('dns.update')
+        a.btn.btn-default(href='/controller/network/' + network.nwid)= t('common.cancel')

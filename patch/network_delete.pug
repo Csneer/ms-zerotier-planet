@@ -1,0 +1,25 @@
+extends network_layout
+
+block net_content
+  section.surface-card.confirm-card
+    if network.deleted
+      .confirm-icon.is-success
+        span.glyphicon.glyphicon-ok(aria-hidden='true')
+      h2= t('delete.network_success', {name: network.name, id: network.nwid})
+      a.btn.btn-primary(href='/controller/networks')= t('nav.networks')
+    else
+      .confirm-icon.is-danger
+        span.glyphicon.glyphicon-trash(aria-hidden='true')
+      h2= t('networks.delete_title')
+      p= t('delete.network_warning')
+      p.muted-text= t('common.confirm_irreversible')
+      form(method='POST' action='')
+        .form-actions.form-actions-center
+          button.btn.btn-danger(type='submit' name='delete')= t('delete.network_button', {name: network.name, id: network.nwid})
+          a.btn.btn-default(href='/controller/networks')= t('common.cancel')
+
+    if errors
+      .alert.alert-danger.text-left
+        ul.compact-list
+          each err in errors
+            li= localize_error(err.msg)

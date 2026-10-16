@@ -7,3 +7,10 @@ backups/
 *.log
 *.tar
 *.tar.gz
+# Never publish node credentials or World signing material from ad-hoc releases.
+identity.secret
+authtoken.secret
+metricstoken.secret
+session.secret
+*.c25519
+__pycache__/

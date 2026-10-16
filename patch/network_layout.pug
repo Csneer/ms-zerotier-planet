@@ -6,17 +6,13 @@ block content
   else
     .page-heading
       div
-        span.eyebrow Network configuration
+        span.eyebrow= t('network.config_eyebrow')
         block network_title
-          h2
-            | Network
+          h1
             a(href='/controller/network/' + network.nwid)= network.name
-        block title
-          if title
-            p= title
+          code.page-network-id= network.nwid
       if navigate && navigate.whence
         a.btn.btn-default(href=navigate.whence role='button')
           span.glyphicon.glyphicon-arrow-left(aria-hidden='true')
-          |  Back
-    .surface-card
-      block net_content
+          |  #{t('common.back')}
+    block net_content

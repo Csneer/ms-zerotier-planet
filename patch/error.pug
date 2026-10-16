@@ -1,0 +1,13 @@
+extends controller_layout
+
+block content
+  section.surface-card.confirm-card
+    .confirm-icon.is-danger
+      span.glyphicon.glyphicon-exclamation-sign(aria-hidden='true')
+    h1= t('error.title')
+    p= t('error.description')
+    if message
+      .alert.alert-danger.text-left= message
+    else if error
+      .alert.alert-danger.text-left= error.message || error
+    a.btn.btn-primary(href='/controller')= t('nav.dashboard')

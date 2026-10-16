@@ -1,0 +1,47 @@
+extends network_layout
+
+block net_content
+  section.surface-card.table-card.settings-card
+    .card-heading.card-heading-padded
+      div
+        h2= t('pools.title')
+        p= t('pools.description')
+    .table-responsive
+      table.table.app-table
+        thead
+          tr
+            th= t('network.pool_start')
+            th= t('network.pool_end')
+            th.text-right= t('common.actions')
+        tbody
+          if network.ipAssignmentPools && network.ipAssignmentPools.length
+            each pool in network.ipAssignmentPools
+              tr
+                td
+                  code= pool.ipRangeStart
+                td
+                  code= pool.ipRangeEnd
+                td.text-right
+                  a.btn.btn-link.btn-sm.danger-link(href='/controller/network/' + network.nwid + '/ipAssignmentPools/' + pool.ipRangeStart + '/' + pool.ipRangeEnd + '/delete' title=t('common.delete'))
+                    span.glyphicon.glyphicon-trash(aria-hidden='true')
+          else
+            tr
+              td.empty-table-cell(colspan='3')= t('pools.empty')
+    .settings-form
+      h3= t('pools.add')
+      if errors
+        .alert.alert-danger
+          ul.compact-list
+            each err in errors
+              li= localize_error(err.msg)
+      form(method='POST' action='/controller/network/' + network.nwid + '/ipAssignmentPools')
+        .form-row
+          .form-group
+            label(for='ipRangeStart')= t('network.pool_start')
+            input#ipRangeStart.form-control(type='text' name='ipRangeStart' placeholder='10.11.12.1' value=(ipAssignmentPool === undefined ? '' : ipAssignmentPool.ipRangeStart))
+          .form-group
+            label(for='ipRangeEnd')= t('network.pool_end')
+            input#ipRangeEnd.form-control(type='text' name='ipRangeEnd' placeholder='10.11.12.254' value=(ipAssignmentPool === undefined ? '' : ipAssignmentPool.ipRangeEnd))
+        .form-actions
+          button.btn.btn-primary(type='submit')= t('pools.add')
+          a.btn.btn-default(href='/controller/network/' + network.nwid)= t('common.cancel')

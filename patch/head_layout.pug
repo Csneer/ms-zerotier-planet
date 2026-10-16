@@ -12,9 +12,9 @@ mixin json_value(value)
       code= value
 
 doctype html
-html(lang='en')
+html(lang=lang || 'zh-CN')
   head
-    title #{title || 'Control Center'} · ZeroTier Planet
+    title #{t('app.control_center')} · ZeroTier Planet
     meta(charset='utf-8')
     meta(name='viewport' content='width=device-width, initial-scale=1')
     meta(name='theme-color' content='#101827')
@@ -28,7 +28,7 @@ html(lang='en')
       .container-fluid.app-navbar-inner
         .navbar-header
           button.navbar-toggle.collapsed(type='button' data-toggle='collapse' data-target='#appNavigation' aria-expanded='false')
-            span.sr-only Toggle navigation
+            span.sr-only= t('nav.toggle')
             span.icon-bar
             span.icon-bar
             span.icon-bar
@@ -36,14 +36,18 @@ html(lang='en')
             span.brand-mark ZT
             span.brand-text
               strong ZeroTier Planet
-              small Control Center
+              small= t('app.control_center')
         .collapse.navbar-collapse#appNavigation
           ul.nav.navbar-nav.app-nav
             block nav_items
           ul.nav.navbar-nav.navbar-right.app-nav
+            li.language-menu
+              a(href=language_url(lang === 'zh-CN' ? 'en' : 'zh-CN') title=t('language.switch'))
+                span.glyphicon.glyphicon-globe(aria-hidden='true')
+                span.nav-label= lang === 'zh-CN' ? t('language.english') : t('language.chinese')
             li
               block nav_login
                 a(href='/logout')
                   span.glyphicon.glyphicon-log-out(aria-hidden='true')
-                  span.nav-label Sign out
+                  span.nav-label= t('nav.sign_out')
     block body_content

@@ -1,0 +1,316 @@
+extends controller_layout
+include roots_panel
+
+block content
+  .page-heading
+    div
+      span.eyebrow= t('monitor.eyebrow')
+      h1= t('monitor.title')
+      p= t('monitor.description')
+    a.btn.btn-default(href='/controller/monitor')
+      span.glyphicon.glyphicon-refresh(aria-hidden='true')
+      |  #{t('common.refresh')}
+
+  if error
+    .alert.alert-danger= error
+  else
+    if !monitor.service.planetMatches || !monitor.service.rootConfigAvailable || monitor.service.unexpectedPlanetCount
+      .alert.alert-danger.monitor-alert
+        strong= t('monitor.planet_problem')
+        p= t('monitor.planet_problem_desc', {count: monitor.service.unexpectedPlanetCount === null ? '—' : monitor.service.unexpectedPlanetCount})
+    if monitor.summary.bridgeMemberCount
+      .alert.alert-warning.monitor-alert
+        strong= t('monitor.bridge_warning', {count: monitor.summary.bridgeMemberCount})
+        p= t('monitor.bridge_warning_desc')
+
+    .monitor-summary-grid
+      .stat-card.monitor-stat
+        .stat-icon
+          span.glyphicon.glyphicon-hdd
+        .stat-content
+          span.stat-label= t('monitor.private_root')
+          strong(class=monitor.service.planetMatches && monitor.service.unexpectedPlanetCount === 0 ? 'text-success' : 'text-danger')= monitor.service.planetMatches && monitor.service.unexpectedPlanetCount === 0 ? t('monitor.healthy') : t('monitor.abnormal')
+      .stat-card.monitor-stat
+        .stat-icon
+          span.glyphicon.glyphicon-signal
+        .stat-content
+          span.stat-label= t('monitor.planet_reachable')
+          strong #{monitor.summary.planetReachableCount} / #{monitor.summary.planetObservedCount}
+          if monitor.summary.planetUnknownCount
+            small.monitor-path-meta #{monitor.summary.planetUnknownCount} #{t('monitor.communication_unknown_short')}
+      .stat-card.monitor-stat
+        .stat-icon
+          span.glyphicon.glyphicon-resize-small
+        .stat-content
+          span.stat-label= t('monitor.probe_direct')
+          strong= monitor.probe.available ? monitor.summary.probeDirectCount : '—'
+      .stat-card.monitor-stat
+        .stat-icon
+          span.glyphicon.glyphicon-random
+        .stat-content
+          span.stat-label= t('monitor.probe_relay')
+          strong= monitor.probe.available ? monitor.summary.probeRelayCount : '—'
+
+    +roots_panel(topology, uiListeners)
+
+    if monitor.communication
+      section.surface-card.table-card.monitor-network-card
+        .card-heading.card-heading-padded
+          div
+            h2= t('monitor.network_health')
+            p= t('monitor.network_health_desc')
+        .monitor-communication-grid
+          .detail-item
+            span= t('monitor.communication_members')
+            strong #{monitor.communication.memberCount} / #{monitor.communication.networkCount} #{t('monitor.communication_networks')}
+          .detail-item
+            span= t('monitor.communication_planet_coverage')
+            strong= monitor.communication.planetCoveragePercent === null ? '—' : monitor.communication.planetCoveragePercent + '%'
+            small.monitor-path-meta #{monitor.communication.planetReachableCount} / #{monitor.communication.planetObservedCount} #{t('monitor.communication_observed_short')}; #{monitor.communication.planetUnknownCount} #{t('monitor.communication_unknown_short')}
+          .detail-item
+            span= t('monitor.communication_direct')
+            strong= monitor.probe.available ? monitor.communication.probeDirectCount : '—'
+          .detail-item
+            span= t('monitor.communication_relay')
+            strong= monitor.probe.available ? monitor.communication.probeRelayCount : '—'
+          .detail-item
+            span= t('monitor.communication_unknown')
+            strong= monitor.probe.available ? monitor.communication.probeUnknownCount : '—'
+          .detail-item
+            span= t('monitor.communication_risk')
+            strong #{monitor.communication.oldVersionCount} #{t('monitor.communication_old')} · #{monitor.communication.bridgeCount} #{t('monitor.communication_bridge')}
+        .table-responsive
+          table.table.app-table.monitor-table
+            thead
+              tr
+                th= t('monitor.network_name')
+                th= t('monitor.network_members')
+                th= t('monitor.network_planet_coverage')
+                th= t('monitor.network_probe_paths')
+                th= t('monitor.network_risk')
+            tbody
+              each network in monitor.networkStats
+                - const networkClass = network.state === 'healthy' ? 'is-direct' : ['degraded', 'partial'].includes(network.state) ? 'is-relay' : 'is-unknown';
+                tr
+                  td
+                    strong= network.name || network.nwid
+                    code.monitor-member-id= network.nwid
+                    if network.mtu
+                      small.monitor-path-meta MTU #{network.mtu}
+                  td
+                    | #{network.authorizedCount} / #{network.memberCount}
+                    small.monitor-path-meta= t('monitor.network_authorized')
+                  td
+                    span.path-badge(class=networkClass)= t('monitor.network_state_' + network.state)
+                    small.monitor-path-meta #{network.planetReachableCount} / #{network.planetObservedCount} #{t('monitor.communication_observed_short')}#{network.planetCoveragePercent === null ? '' : ' (' + network.planetCoveragePercent + '%)'}
+                    if network.planetUnknownCount
+                      small.monitor-path-meta #{network.planetUnknownCount} #{t('monitor.communication_unknown_short')}
+                  td
+                    if monitor.probe.available
+                      span.monitor-path-meta #{network.probeDirectCount} #{t('monitor.communication_direct_short')} · #{network.probeRelayCount} #{t('monitor.communication_relay_short')} · #{network.probeUnknownCount} #{t('monitor.communication_unknown_short')}
+                      if network.directPercent !== null
+                        small.monitor-path-meta= t('monitor.network_direct_percent', {value: network.directPercent})
+                    else
+                      span.muted-text= t('monitor.probe_unavailable')
+                  td
+                    if network.oldVersionCount
+                      span.risk-badge #{network.oldVersionCount} #{t('monitor.communication_old')}
+                    if network.bridgeCount
+                      span.risk-badge #{network.bridgeCount} #{t('monitor.communication_bridge')}
+                    if !network.oldVersionCount && !network.bridgeCount
+                      span.muted-text= t('common.none')
+              else
+                tr
+                  td.empty-table-cell(colspan='5')= t('monitor.no_networks')
+        p.monitor-footnote= t('monitor.communication_scope_note')
+
+    section.surface-card.table-card.monitor-network-card
+      .card-heading.card-heading-padded
+        div
+          h2= t('monitor.endpoint_probes')
+          p= t('monitor.endpoint_probes_desc')
+        if monitor.endpointProbes && monitor.endpointProbes.available && monitor.endpointProbes.configuredCount
+          span.status-pill(class=monitor.endpointProbes.failedCount ? 'is-offline' : 'is-online')
+            span.status-dot
+            | #{monitor.endpointProbes.reachableCount} / #{monitor.endpointProbes.configuredCount} #{t('monitor.endpoint_probe_reachable_short')}
+        else if monitor.endpointProbes && monitor.endpointProbes.configured && !monitor.endpointProbes.available
+          span.status-pill.is-offline
+            span.status-dot
+            | #{t('monitor.endpoint_probe_config_error_short')}
+        else if monitor.endpointProbes && monitor.endpointProbes.configured
+          span.status-pill.is-online
+            span.status-dot
+            | #{t('monitor.endpoint_probe_empty_short')}
+        else
+          span.status-pill.is-offline
+            span.status-dot
+            | #{t('monitor.endpoint_probe_unconfigured')}
+      if !monitor.endpointProbes || !monitor.endpointProbes.configured
+        .alert.alert-info= t('monitor.endpoint_probe_unconfigured_desc')
+      else if !monitor.endpointProbes.available
+        .alert.alert-warning= t('monitor.endpoint_probe_config_error', {code: monitor.endpointProbes.errorCode || '—'})
+      else
+        .table-responsive
+          table.table.app-table.monitor-table
+            thead
+              tr
+                th= t('monitor.endpoint_probe_name')
+                th= t('monitor.endpoint_probe_address')
+                th= t('monitor.endpoint_probe_state')
+                th= t('monitor.endpoint_probe_latency')
+                th= t('monitor.endpoint_probe_error')
+            tbody
+              each endpoint in monitor.endpointProbes.results
+                tr
+                  td
+                    strong= endpoint.name
+                    if endpoint.enabled === false
+                      small.monitor-path-meta= t('monitor.endpoint_probe_disabled')
+                  td
+                    code.monitor-path= endpoint.addressLabel + ':' + endpoint.port
+                  td
+                    span.path-badge(class=endpoint.state === 'reachable' ? 'is-direct' : endpoint.state === 'disabled' ? 'is-self' : 'is-unknown')= t('monitor.endpoint_probe_state_' + endpoint.state)
+                  td= endpoint.latencyMs === null ? '—' : endpoint.latencyMs + ' ms'
+                  td
+                    if endpoint.errorCode
+                      code= endpoint.errorCode
+                    else
+                      span.muted-text= t('common.none')
+              else
+                tr
+                  td.empty-table-cell(colspan='5')= t('monitor.endpoint_probe_empty')
+        p.monitor-footnote= t('monitor.endpoint_probe_scope_note')
+
+    .row.monitor-card-row
+      .col-md-6
+        section.surface-card.monitor-card
+          .card-heading
+            div
+              h2= t('monitor.service_status')
+              p= t('monitor.generated_at', {time: monitor.generatedAt})
+          .detail-grid
+            .detail-item
+              span= t('dashboard.node_address')
+              code= monitor.service.address
+            .detail-item
+              span= t('dashboard.zt_version')
+              strong= monitor.service.version
+            .detail-item
+              span= t('monitor.planet_hash')
+              strong= monitor.service.planetMatches ? t('monitor.consistent') : t('monitor.inconsistent')
+            .detail-item
+              span= t('monitor.unexpected_roots')
+              strong= monitor.service.unexpectedPlanetCount === null ? '—' : monitor.service.unexpectedPlanetCount
+            .detail-item
+              span= t('dashboard.tcp_fallback')
+              strong= monitor.service.tcpFallbackActive ? t('dashboard.active') : t('dashboard.inactive')
+            .detail-item
+              span= t('monitor.ui_uptime')
+              strong= formatAge(monitor.service.uptimeSeconds * 1000)
+      .col-md-6
+        section.surface-card.monitor-card
+          .card-heading
+            div
+              h2= t('monitor.traffic')
+              p= t('monitor.traffic_desc')
+          if monitor.metrics.available
+            .detail-grid
+              .detail-item
+                span= t('monitor.udp_rx')
+                strong= formatBytes(monitor.metrics.traffic.udpRx)
+                small= monitor.metrics.rates.traffic ? formatRate(monitor.metrics.rates.traffic.udpRx, 'B') : t('monitor.rate_waiting')
+              .detail-item
+                span= t('monitor.udp_tx')
+                strong= formatBytes(monitor.metrics.traffic.udpTx)
+                small= monitor.metrics.rates.traffic ? formatRate(monitor.metrics.rates.traffic.udpTx, 'B') : t('monitor.rate_waiting')
+              .detail-item
+                span= t('monitor.tcp_rx')
+                strong= formatBytes(monitor.metrics.traffic.tcpRx)
+              .detail-item
+                span= t('monitor.tcp_tx')
+                strong= formatBytes(monitor.metrics.traffic.tcpTx)
+              .detail-item
+                span= t('monitor.packet_rx')
+                strong= monitor.metrics.rates.packets ? formatRate(monitor.metrics.rates.packets.rx, 'pkt') : t('monitor.rate_waiting')
+              .detail-item
+                span= t('monitor.packet_tx')
+                strong= monitor.metrics.rates.packets ? formatRate(monitor.metrics.rates.packets.tx, 'pkt') : t('monitor.rate_waiting')
+          else
+            .alert.alert-info= t('monitor.metrics_waiting')
+
+    section.surface-card.table-card.monitor-member-card
+      .card-heading.card-heading-padded
+        div
+          h2= t('monitor.member_paths')
+          p= t('monitor.scope_note')
+        if monitor.probe.available
+          span.status-pill.is-online
+            span.status-dot
+            | #{t('monitor.probe_available')}
+        else
+          span.status-pill.is-offline
+            span.status-dot
+            | #{t('monitor.probe_unavailable')}
+      .table-responsive
+        table.table.app-table.monitor-table
+          thead
+            tr
+              th= t('network.device')
+              th= t('monitor.networks')
+              th= t('monitor.planet_view')
+              th= t('monitor.probe_view')
+              th= t('monitor.risk')
+          tbody
+            each member in monitor.members
+              tr
+                td
+                  strong= member.name || member.id
+                  if member.name
+                    code.monitor-member-id= member.id
+                  small.member-version= member.version ? 'v' + member.version : t('common.none')
+                td
+                  each network in member.networks
+                    a.monitor-network-link(href='/controller/network/' + network.nwid)= network.name || network.nwid
+                td
+                  if member.planet.reachable
+                    span.path-badge.is-direct= t('monitor.to_planet_direct')
+                    small.monitor-path-meta #{member.planet.latency} ms · #{t('monitor.activity_ago', {age: formatAge(member.planet.lastActivityMs)})}
+                    if member.planet.path
+                      code.monitor-path= member.planet.path
+                  else
+                    span.path-badge.is-unknown= t('monitor.planet_unreachable')
+                td
+                  case member.probe.state
+                    when 'direct'
+                      span.path-badge.is-direct DIRECT
+                    when 'relay'
+                      span.path-badge.is-relay RELAY
+                    when 'tcp_relay'
+                      span.path-badge.is-relay TCP RELAY
+                    when 'self'
+                      span.path-badge.is-self= t('monitor.probe_self')
+                    when 'unknown'
+                      span.path-badge.is-unknown= t('monitor.unknown')
+                    default
+                      span.path-badge.is-unknown= t('monitor.unavailable')
+                  if member.probe.latency !== null
+                    small.monitor-path-meta #{member.probe.latency} ms
+                  if member.probe.path
+                    code.monitor-path= member.probe.path
+                td
+                  if member.activeBridge
+                    span.risk-badge= t('monitor.bridge_enabled')
+                  if member.versionBehind
+                    span.risk-badge= t('monitor.old_client')
+                  if !member.activeBridge && !member.versionBehind
+                    span.muted-text= t('common.none')
+            else
+              tr
+                td.empty-table-cell(colspan='5')= t('monitor.no_members')
+
+    p.monitor-footnote= t('monitor.relay_limit_note')
+
+    script.
+      setTimeout(function() {
+        if (!document.hidden) window.location.reload();
+      }, 10000);

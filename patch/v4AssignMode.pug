@@ -1,0 +1,37 @@
+extends network_layout
+
+block net_content
+  section.surface-card.form-card
+    .card-heading
+      div
+        h2= t('assign.ipv4_title')
+        p= t('assign.ipv4_description')
+
+    if error
+      .alert.alert-danger= error
+    if errors
+      .alert.alert-danger
+        ul.compact-list
+          each err in errors
+            li= localize_error(err.msg)
+
+    .setting-toggle
+      div
+        strong= t('assign.auto_pool')
+      label.switch-control.switch-control-large
+        input#v4AssignModeCheckBox(type='checkbox' checked=Boolean(network.v4AssignMode && network.v4AssignMode.zt))
+        span.switch-slider
+    p.auto-save-note
+      span.glyphicon.glyphicon-ok-circle(aria-hidden='true')
+      |  #{t('assign.saved_auto')}
+
+    script.
+      $(function() {
+        $('#v4AssignModeCheckBox').on('change', function() {
+          var checkbox = this;
+          $(checkbox).prop('disabled', true);
+          $.post('', {zt: checkbox.checked})
+            .fail(function() { checkbox.checked = !checkbox.checked; })
+            .always(function() { $(checkbox).prop('disabled', false); });
+        });
+      });
