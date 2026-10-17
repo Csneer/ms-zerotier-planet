@@ -32,28 +32,49 @@ block content
             strong.hero-status-value —
           small= dashboard_stats && dashboard_stats.available ? t('dashboard.planet_reachable_devices') : t('dashboard.stats_unavailable')
 
-    .row.status-grid
-      .col-sm-4
-        .stat-card
-          .stat-icon
-            span.glyphicon.glyphicon-screenshot
-          .stat-content
-            span.stat-label= t('dashboard.node_address')
-            strong= zt_status.address
-      .col-sm-4
-        .stat-card
-          .stat-icon
-            span.glyphicon.glyphicon-tags
-          .stat-content
-            span.stat-label= t('dashboard.zt_version')
-            strong= zt_status.version
-      .col-sm-4
-        .stat-card
-          .stat-icon
-            span.glyphicon.glyphicon-transfer
-          .stat-content
-            span.stat-label= t('dashboard.tcp_fallback')
-            strong= zt_status.tcpFallbackActive ? t('dashboard.active') : t('dashboard.inactive')
+    .dashboard-stat-grid(role='group' aria-label=t('dashboard.quick_heading'))
+      .stat-card.stat-card-accent
+        .stat-icon
+          span.glyphicon.glyphicon-screenshot(aria-hidden='true')
+        .stat-content
+          span.stat-label= t('dashboard.node_address')
+          strong= zt_status.address
+          small.stat-meta= t('dashboard.controller_status')
+      .stat-card
+        .stat-icon.stat-icon-cyan
+          span.glyphicon.glyphicon-globe(aria-hidden='true')
+        .stat-content
+          span.stat-label= t('nav.networks')
+          strong= dashboard_stats && dashboard_stats.available ? dashboard_stats.networkCount : '—'
+          small.stat-meta= dashboard_stats && dashboard_stats.available ? t('dashboard.network_count') : t('dashboard.stats_unavailable')
+      .stat-card
+        .stat-icon.stat-icon-green
+          span.glyphicon.glyphicon-user(aria-hidden='true')
+        .stat-content
+          span.stat-label= t('network.member_total')
+          strong= dashboard_stats && dashboard_stats.available ? dashboard_stats.memberCount : '—'
+          small.stat-meta= dashboard_stats && dashboard_stats.available ? t('dashboard.member_count') : t('dashboard.stats_unavailable')
+      .stat-card
+        .stat-icon.stat-icon-violet
+          span.glyphicon.glyphicon-tags(aria-hidden='true')
+        .stat-content
+          span.stat-label= t('dashboard.zt_version')
+          strong= zt_status.version
+          small.stat-meta= t('dashboard.runtime_version')
+      .stat-card
+        .stat-icon.stat-icon-cyan
+          span.glyphicon.glyphicon-signal(aria-hidden='true')
+        .stat-content
+          span.stat-label= t('dashboard.planet_reachable_devices')
+          strong= dashboard_stats && dashboard_stats.available ? dashboard_stats.planetReachableMemberCount + ' / ' + dashboard_stats.memberCount : '—'
+          small.stat-meta= t('dashboard.reachability_scope')
+      .stat-card
+        .stat-icon.stat-icon-amber
+          span.glyphicon.glyphicon-transfer(aria-hidden='true')
+        .stat-content
+          span.stat-label= t('dashboard.tcp_fallback')
+          strong= zt_status.tcpFallbackActive ? t('dashboard.active') : t('dashboard.inactive')
+          small.stat-meta= t('dashboard.tcp_fallback_desc')
 
     +roots_panel(topology, uiListeners)
 
@@ -62,39 +83,46 @@ block content
         span.eyebrow= t('dashboard.quick_actions')
         h2= t('dashboard.quick_heading')
 
-    .row.action-grid
-      .col-sm-6.col-lg-3
-        a.action-card(href='/controller/monitor')
-          span.action-icon.action-green
-            span.glyphicon.glyphicon-signal
-          strong= t('nav.monitor')
-          p= t('dashboard.monitor_description')
-          span.action-link= t('dashboard.open_monitor')
-      .col-sm-6.col-lg-3
-        a.action-card(href='/controller/networks')
-          span.action-icon.action-blue
-            span.glyphicon.glyphicon-globe
-          strong= t('nav.networks')
-          p= t('dashboard.networks_description')
-          span.action-link= t('dashboard.open_networks')
-      .col-sm-6.col-lg-3
-        a.action-card(href='/controller/network/create')
-          span.action-icon.action-violet
-            span.glyphicon.glyphicon-plus
-          strong= t('nav.new_network')
-          p= t('dashboard.new_network_description')
-          span.action-link= t('dashboard.create_network')
-      .col-sm-6.col-lg-3
-        a.action-card(href='/controller/downloads')
-          span.action-icon.action-cyan
-            span.glyphicon.glyphicon-download-alt
-          strong= t('dashboard.config_files')
-          p= t('dashboard.config_description')
-          span.action-link= t('dashboard.view_downloads')
-      .col-sm-6.col-lg-3
-        a.action-card(href='/users')
-          span.action-icon.action-green
-            span.glyphicon.glyphicon-user
-          strong= t('dashboard.administrators')
-          p= t('dashboard.admin_description')
-          span.action-link= t('dashboard.manage_users')
+    .dashboard-action-grid
+      a.action-card.action-card-featured(href='/controller/monitor')
+        span.action-icon.action-green
+          span.glyphicon.glyphicon-signal(aria-hidden='true')
+        strong= t('nav.monitor')
+        p= t('dashboard.monitor_description')
+        span.action-link= t('dashboard.open_monitor')
+          span.glyphicon.glyphicon-arrow-right(aria-hidden='true')
+      a.action-card(href='/controller/networks')
+        span.action-icon.action-blue
+          span.glyphicon.glyphicon-globe(aria-hidden='true')
+        strong= t('nav.networks')
+        p= t('dashboard.networks_description')
+        span.action-link= t('dashboard.open_networks')
+          span.glyphicon.glyphicon-arrow-right(aria-hidden='true')
+      a.action-card(href='/controller/network/create')
+        span.action-icon.action-violet
+          span.glyphicon.glyphicon-plus(aria-hidden='true')
+        strong= t('nav.new_network')
+        p= t('dashboard.new_network_description')
+        span.action-link= t('dashboard.create_network')
+          span.glyphicon.glyphicon-arrow-right(aria-hidden='true')
+      a.action-card(href='/controller/downloads')
+        span.action-icon.action-cyan
+          span.glyphicon.glyphicon-download-alt(aria-hidden='true')
+        strong= t('dashboard.config_files')
+        p= t('dashboard.config_description')
+        span.action-link= t('dashboard.view_downloads')
+          span.glyphicon.glyphicon-arrow-right(aria-hidden='true')
+
+    .section-heading.dashboard-management-heading
+      div
+        span.eyebrow= t('dashboard.management')
+        h2= t('dashboard.administrators')
+
+    .dashboard-management
+      a.action-card.dashboard-management-card(href='/users')
+        span.action-icon.action-green
+          span.glyphicon.glyphicon-user(aria-hidden='true')
+        strong= t('dashboard.administrators')
+        p= t('dashboard.admin_description')
+        span.action-link= t('dashboard.manage_users')
+          span.glyphicon.glyphicon-arrow-right(aria-hidden='true')

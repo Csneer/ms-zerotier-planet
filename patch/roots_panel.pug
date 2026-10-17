@@ -11,7 +11,7 @@ mixin root_observation(observation)
     code.monitor-path= observation.path
 
 mixin roots_panel(topology, listeners)
-  section.surface-card.table-card.monitor-root-card
+  section#root-topology.surface-card.table-card.monitor-root-card
     .card-heading.card-heading-padded
       div
         h2= t('monitor.root_topology')

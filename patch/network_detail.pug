@@ -147,9 +147,11 @@ block net_content
       div
         h2 #{t('network.members_heading')} (#{memberList.length})
         p= t('network.members_hint')
-      a.btn.btn-default.btn-sm(href='')
-        span.glyphicon.glyphicon-refresh(aria-hidden='true')
-        |  #{t('common.refresh')}
+      .member-header-actions
+        span#members-save-status.inline-save-status(aria-live='polite' data-saving=t('common.saving') data-saved=t('common.saved') data-failed=t('common.save_failed'))
+        a.btn.btn-default.btn-sm(href='')
+          span.glyphicon.glyphicon-refresh(aria-hidden='true')
+          |  #{t('common.refresh')}
 
     .member-scope-note
       span.glyphicon.glyphicon-info-sign(aria-hidden='true')
@@ -162,17 +164,48 @@ block net_content
     script.
       $(function() {
         var url = '#{nwurl}/members';
+        var saveStatus = $('#members-save-status');
+        var saveSequence = 0;
+        function setSaveStatus(state) {
+          var message = saveStatus.attr('data-' + state) || '';
+          saveStatus.text(message)
+            .toggleClass('is-visible', Boolean(message))
+            .toggleClass('is-saved', state === 'saved')
+            .toggleClass('is-error', state === 'failed');
+        }
+        function beginSave() {
+          saveSequence += 1;
+          setSaveStatus('saving');
+          return saveSequence;
+        }
+        function finishSave(sequence, state) {
+          if (sequence === saveSequence) setSaveStatus(state);
+        }
         $('.authCheck, .bridgeCheck').on('change', function() {
           var checkbox = this;
           var payload = {id: checkbox.value};
           payload[$(checkbox).hasClass('authCheck') ? 'auth' : 'activeBridge'] = checkbox.checked;
+          var sequence = beginSave();
           $(checkbox).prop('disabled', true);
           $.post(url, payload)
-            .fail(function() { checkbox.checked = !checkbox.checked; })
+            .done(function() { finishSave(sequence, 'saved'); })
+            .fail(function() { checkbox.checked = !checkbox.checked; finishSave(sequence, 'failed'); })
             .always(function() { $(checkbox).prop('disabled', false); });
         });
         $('.member-name-input').on('change', function() {
-          $.post(url, {id: this.name, name: this.value});
+          var input = this;
+          var submittedValue = input.value;
+          var previousValue = input.defaultValue;
+          var sequence = beginSave();
+          $.post(url, {id: input.name, name: submittedValue})
+            .done(function() {
+              input.defaultValue = submittedValue;
+              finishSave(sequence, 'saved');
+            })
+            .fail(function() {
+              if (input.value === submittedValue) input.value = previousValue;
+              finishSave(sequence, 'failed');
+            });
         });
       });
 
