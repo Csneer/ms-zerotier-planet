@@ -1,8 +1,9 @@
 mixin nav_item(name, displayName, href, icon)
-  li(class=((navigate && navigate.active === name) ? 'active' : ''))
-    a(href=href)
+  - var isActive = !!(navigate && navigate.active === name)
+  li(class=(isActive ? 'active' : ''))
+    a(href=href class='app-nav-link' aria-current=(isActive ? 'page' : undefined))
       if icon
-        span.glyphicon(class='glyphicon-' + icon aria-hidden='true')
+        span.nav-icon.glyphicon(class='glyphicon-' + icon aria-hidden='true')
       span.nav-label= displayName
 
 mixin json_value(value)
@@ -24,6 +25,7 @@ html(lang=lang || 'zh-CN')
     script(src='/jqjs/jquery.min.js')
     script(src='/bsjs/bootstrap.min.js')
   body
+    a.app-skip-link(href='#main-content')= lang === 'zh-CN' ? '跳转到内容' : 'Skip to content'
     nav.navbar.navbar-inverse.navbar-fixed-top.app-navbar
       .container-fluid.app-navbar-inner
         .navbar-header
@@ -43,11 +45,11 @@ html(lang=lang || 'zh-CN')
           ul.nav.navbar-nav.navbar-right.app-nav
             li.language-menu
               a(href=language_url(lang === 'zh-CN' ? 'en' : 'zh-CN') title=t('language.switch'))
-                span.glyphicon.glyphicon-globe(aria-hidden='true')
+                span.nav-icon.glyphicon.glyphicon-globe(aria-hidden='true')
                 span.nav-label= lang === 'zh-CN' ? t('language.english') : t('language.chinese')
             li
               block nav_login
                 a(href='/logout')
-                  span.glyphicon.glyphicon-log-out(aria-hidden='true')
+                  span.nav-icon.glyphicon.glyphicon-log-out(aria-hidden='true')
                   span.nav-label= t('nav.sign_out')
     block body_content

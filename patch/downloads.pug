@@ -7,19 +7,31 @@ block content
       h1= t('downloads.title')
       p= t('downloads.description')
 
-  .alert.alert-info(role='alert')
-    strong= t('downloads.planet_help')
-    |  #{t('downloads.planet_text')}
-    br
-    strong= t('downloads.moon_help')
-    |  #{t('downloads.moon_text')}
+  .download-guide(role='note')
+    .download-guide-title
+      span.action-icon.action-cyan
+        span.glyphicon.glyphicon-info-sign(aria-hidden='true')
+      div
+        strong= t('downloads.planet_help')
+        p= t('downloads.planet_text')
+    .download-guide-title
+      span.action-icon.action-violet
+        span.glyphicon.glyphicon-file(aria-hidden='true')
+      div
+        strong= t('downloads.moon_help')
+        p= t('downloads.moon_text')
 
   if error
     .alert.alert-danger(role='alert')= error
   else if !files.length
     .alert.alert-warning(role='alert')= t('downloads.empty')
   else
-    .surface-card.table-card
+    .surface-card.table-card.download-list-card
+      .list-toolbar
+        div
+          strong= t('downloads.title')
+          small= t('downloads.description')
+        span.list-toolbar-hint= t('downloads.download')
       .table-responsive
         table.table.app-table
           thead
@@ -36,11 +48,11 @@ block content
                 td
                   span.label(class=file.type === 'Planet' ? 'label-primary' : 'label-info')= file.type
                 td
-                  code.network-id= file.name
+                  code.network-id.file-name= file.name
                 td #{file.size} bytes
                 td= file.modified
                 td
-                  code(style='word-break: break-all;')= file.sha256
+                  code.checksum-value(title=file.sha256)= file.sha256
                 td.text-right
                   a.btn.btn-primary.btn-sm(
                     href='/controller/downloads/' + file.name
