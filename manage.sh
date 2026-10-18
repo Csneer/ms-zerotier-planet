@@ -298,8 +298,10 @@ backup_data() {
                 tool_path="$destination/$label/$tool"
                 if [[ -L "$tool_path" ]]; then
                     tool_target=$(readlink -- "$tool_path")
-                    [[ "$tool_target" == /usr/sbin/zerotier-one ]] \
-                        || die "unsupported symbolic link in backup source: $label/$tool -> $tool_target"
+                    if [[ "$tool_target" != /usr/sbin/zerotier-one ]]; then
+                        backup_discard "$destination"
+                        die "unsupported symbolic link in backup source: $label/$tool -> $tool_target"
+                    fi
                     rm -f -- "$tool_path"
                 fi
             done
@@ -343,11 +345,11 @@ backup_data() {
         printf 'container=%s\n' "$name"
     } >"$destination/manifest.env"
     if ! (
-        cd "$destination"
-        sums=$(mktemp .SHA256SUMS.tmp.XXXXXXXX)
-        find . -type f ! -path ./SHA256SUMS ! -path "./$sums" -print0 | sort -z | xargs -0 sha256sum >"$sums"
-        mv -- "$sums" SHA256SUMS
-        sha256sum -c SHA256SUMS >/dev/null
+        cd "$destination" || exit 1
+        sums=$(mktemp .SHA256SUMS.tmp.XXXXXXXX) || exit 1
+        find . -type f ! -path ./SHA256SUMS ! -path "./$sums" -print0 | sort -z | xargs -0 sha256sum >"$sums" || exit 1
+        mv -- "$sums" SHA256SUMS || exit 1
+        sha256sum -c SHA256SUMS >/dev/null || exit 1
     ); then
         backup_discard "$destination"
         die 'failed to verify backup manifest'
