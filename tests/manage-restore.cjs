@@ -68,6 +68,78 @@ try {
   const externalMissing = fixture('missing-external-planet', 'external', '1');
   fs.unlinkSync(path.join(externalMissing, 'config/planet')); sums(externalMissing);
   validate(externalMissing, 'missing required state: config/planet');
+
+  // A checksum producer can leave a syntactically valid partial manifest and
+  // still fail.  The backup must be rejected and removed, while a service
+  // stopped for the offline snapshot must be started again.  The wrapper
+  // below executes the real sha256sum for one input, then returns non-zero;
+  // this exercises the command's exit status rather than matching source text.
+  const partialRoot = path.join(root, 'partial-manifest');
+  const partialLive = path.join(partialRoot, 'live');
+  for (const label of labels) fs.mkdirSync(path.join(partialLive, label), { recursive: true });
+  for (const [name, value] of Object.entries({
+    '.env': 'PLANET_MODE=generated\nROOT_ONLY=0\nCONTROLLER_ONLY=0\n',
+    'docker-compose.yml': 'services: {}\n',
+    'one/identity.secret': 'secret', 'one/identity.public': 'public',
+    'one/planet': 'planet', 'dist/planet': 'planet',
+    'one/current.c25519': 'key', 'one/previous.c25519': 'key',
+    'one/moon.json': '{}', 'ztncui-state/passwd': 'hash',
+    'config/session.secret': 'session'
+  })) write(path.join(partialLive, name), value);
+  write(path.join(partialRoot, '.env'), 'PLANET_MODE=generated\nROOT_ONLY=0\nCONTROLLER_ONLY=0\n');
+  write(path.join(partialRoot, 'docker-compose.yml'), 'services: {}\n');
+  const checksumWrapper = path.join(partialRoot, 'bin', 'sha256sum');
+  write(checksumWrapper, '#!/bin/sh\nif [ "$1" = -c ]; then exec /usr/bin/sha256sum "$@"; fi\n/usr/bin/sha256sum "$1"\nexit 1\n');
+  fs.chmodSync(checksumWrapper, 0o755);
+  const partialStubs = String.raw`
+require_command() { :; }
+load_config() { :; }
+container_name() { printf partial-test; }
+container_running() { return 0; }
+container_exists() { return 1; }
+wait_healthy() { :; }
+config_value() { case "$1" in *PLANET_MODE*) printf generated;; *ROOT_ONLY*) printf 0;; *CONTROLLER_ONLY*) printf 0;; esac; }
+image_name() { printf test:image; }
+mount_source() {
+    case "$1" in
+        /app/dist) printf '%s/dist' "$LIVE" ;;
+        /var/lib/zerotier-one) printf '%s/one' "$LIVE" ;;
+        /app/config) printf '%s/config' "$LIVE" ;;
+        /var/lib/ztncui) printf '%s/ztncui-state' "$LIVE" ;;
+    esac
+}
+backup_root() { printf '%s/snapshots' "$LIVE"; }
+docker() { printf '%s\n' "$*" >> "$LIVE/docker.calls"; return 0; }
+sha256sum() {
+    if [[ "$1" == -c ]]; then command sha256sum "$@"; return; fi
+    command sha256sum "$1"
+    return 1
+}
+cd "$LIVE/.."
+backup_data 0 1
+`;
+  const partialResult = shell(partialStubs, { LIVE: partialLive, WAS_RUNNING: '1', PATH: `${path.join(partialRoot, 'bin')}:${process.env.PATH}` });
+  assert.notEqual(partialResult.status, 0, 'partial checksum generation must fail the backup');
+  assert.ok(!partialResult.stdout.includes('Backup verified:'), partialResult.stdout);
+  assert.match(partialResult.stderr, /failed to verify backup manifest/);
+  const partialSnapshots = path.join(partialLive, 'snapshots');
+  assert.ok(fs.existsSync(partialSnapshots), 'backup root should remain available');
+  assert.deepEqual(fs.readdirSync(partialSnapshots), [], 'incomplete backup must be removed');
+  const partialCalls = fs.readFileSync(path.join(partialLive, 'docker.calls'), 'utf8').trim().split('\n');
+  assert.ok(partialCalls.includes('compose stop -t 20 myztplanet'), 'running service must be stopped for offline backup');
+  assert.ok(partialCalls.includes('compose start myztplanet'), 'running service must be restored after backup failure');
+
+  const wrongToolRoot = path.join(root, 'wrong-tool-target');
+  const wrongToolLive = path.join(wrongToolRoot, 'live');
+  fs.cpSync(partialLive, wrongToolLive, { recursive: true, dereference: false });
+  fs.symlinkSync('/usr/sbin/not-zerotier-one', path.join(wrongToolLive, 'one/zerotier-one'));
+  write(path.join(wrongToolRoot, '.env'), 'PLANET_MODE=generated\nROOT_ONLY=0\nCONTROLLER_ONLY=0\n');
+  write(path.join(wrongToolRoot, 'docker-compose.yml'), 'services: {}\n');
+  const wrongToolResult = shell(partialStubs, { LIVE: wrongToolLive, WAS_RUNNING: '0' });
+  assert.notEqual(wrongToolResult.status, 0, 'wrong ZeroTier tool target must fail the backup');
+  assert.match(wrongToolResult.stderr, /unsupported symbolic link in backup source/);
+  assert.deepEqual(fs.readdirSync(path.join(wrongToolLive, 'snapshots')), [], 'wrong tool target must not leave a backup');
+
   const backup = fixture('restore-source', 'external', '1');
   const stubs = String.raw`
 cd "$TEST_ROOT"
