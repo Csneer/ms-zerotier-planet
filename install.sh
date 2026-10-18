@@ -8,7 +8,13 @@ CREATED_ENV=0
 cd "$ROOT_DIR"
 
 cleanup() {
+    local status=$?
+    trap - EXIT
     [[ -z "$ENV_TMP" ]] || rm -f -- "$ENV_TMP"
+    if ((status != 0 && CREATED_ENV)); then
+        printf 'Configuration was kept in %s. After fixing the failure, run ./install.sh without initialization flags, or run ./manage.sh doctor && ./manage.sh up.\n' "$ENV_FILE" >&2
+    fi
+    exit "$status"
 }
 trap cleanup EXIT
 

@@ -1,0 +1,95 @@
+--- a/src/controllers/networkController.js
++++ b/src/controllers/networkController.js
+@@ -644,6 +644,19 @@
+ 
+ // Easy network setup POST
+ exports.easy_post = async function(req, res) {
++  const validationError = require('../public/javascripts/networkValidation').validate(req.body);
++  if (validationError) {
++    const body = req.body || {};
++    return res.status(400).render('network_easy', {
++      title: 'Easy setup of network',
++      navigate: {active: 'networks', whence: '/controller/networks'},
++      network: {nwid: req.params.nwid, name: '',
++        routes: [{target: typeof body.networkCIDR === 'string' ? body.networkCIDR : ''}],
++        ipAssignmentPools: [{ipRangeStart: typeof body.poolStart === 'string' ? body.poolStart : '',
++          ipRangeEnd: typeof body.poolEnd === 'string' ? body.poolEnd : ''}]},
++      errors: [{msg: req.t(validationError)}]
++    });
++  }
+   const navigate =
+     {
+       active: 'networks',
+--- a/src/controllers/networkController.js
++++ b/src/controllers/networkController.js
+@@ -782,6 +782,8 @@
+         }
+       }
+     }
++    if (errors) return res.status(400).send('Validation failed');
++    return res.status(204).end();
+   } else { // GET
+     res.redirect("/controller/network/" + req.params.nwid + "#members");
+   }
+--- a/src/controllers/networkController.js
++++ b/src/controllers/networkController.js
+@@ -266,12 +266,13 @@
+   let name = { name: req.body.name };
+ 
+   if (errors) {
+-    console.error("network name validation errors", errors);
++    return res.status(400).send('Network name required');
+   } else {
+     try {
+-      const network = await zt.network_object(req.params.nwid, name);
+-    } catch ( err) {
++      await zt.network_object(req.params.nwid, name);
++    } catch (err) {
+       console.error("Error renaming network " + req.params.nwid, err);
++      return res.status(502).send('Network rename failed');
+     }
+   }
+   res.redirect('/controller/network/' + req.params.nwid);
+--- a/src/controllers/networkController.js
++++ b/src/controllers/networkController.js
+@@ -768,7 +768,7 @@
+           throw err;
+         }
+       }
+-    } else if (req.body.name) {
++    } else if (Object.prototype.hasOwnProperty.call(req.body, 'name')) {
+       req.sanitize('name').trim();
+       req.sanitize('name').escape();
+ 
+--- a/src/controllers/networkController.js
++++ b/src/controllers/networkController.js
+@@ -746,7 +746,8 @@
+         try {
+           const mem = await zt.member_object(req.params.nwid, req.body.id, auth);
+         } catch (err) {
+-          throw err;
++          console.error('Member update failed', err);
++          return res.status(502).send('Member update failed');
+         }
+       }
+     } else if (req.body.activeBridge) {
+@@ -765,7 +766,8 @@
+         try {
+           const mem = await zt.member_object(req.params.nwid, req.body.id, activeBridge);
+         } catch (err) {
+-          throw err;
++          console.error('Member update failed', err);
++          return res.status(502).send('Member update failed');
+         }
+       }
+     } else if (req.body.name) {
+@@ -778,7 +780,8 @@
+         try {
+           const ret = await storage.setItem(req.body.id, req.body.name);
+         } catch (err) {
+-          throw err;
++          console.error('Member update failed', err);
++          return res.status(502).send('Member update failed');
+         }
+       }
+     }

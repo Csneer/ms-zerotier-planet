@@ -7,7 +7,7 @@
 
 **用一台低成本云主机，搭建属于自己的 ZeroTier 内网穿透入口。**
 
-`ms-zerotier-planet` 把 ZeroTier Planet、Root、Controller 和 Web 管理控制台打包在一起：你的笔记本、手机、家用 NAS、开发机和云服务器可以加入同一张私有虚拟网络，安全访问 SSH、RDP、HTTP、数据库等内网服务。它使用标准 ZeroTier 客户端，不要求改造业务，也不依赖第三方公共 Planet。
+`ms-zerotier-planet` 把 ZeroTier Planet、Root、Controller 和 Web 管理控制台打包在一起：你的笔记本、家用 NAS、开发机和云服务器可以加入同一张私有虚拟网络，访问 SSH、RDP、HTTP、数据库等内网服务。它兼容可替换 Planet 文件的 ZeroTier 客户端，不要求改造业务，也不依赖第三方公共 Planet。各平台的接入与验证范围见下方客户端配置。
 
 如果你手上只有阿里云等厂商的 **2 vCPU / 2 GiB** 级别云主机，这也是一个实际可落地的起点：个人和小团队的低至中等流量场景可以在一台主机上同时运行 Controller、Root 和 Web 控制台。真实吞吐和延迟仍取决于带宽、地域、NAT、客户端数量与业务流量；需要更高可用性时，可以再增加独立 Root。
 
@@ -27,15 +27,23 @@
 
 ## 快速启动
 
-准备一台带固定公网 IPv4 的 Linux 主机，放行 `9994/udp`，安装 Docker Engine 24+ 与 Compose v2：
+准备一台带固定公网 IPv4 的 Linux 主机，放行 `9994/udp`，安装 Docker Engine 24+、Compose v2、Bash、Git、Python 3、`jq` 和 GNU coreutils（含 `realpath`）。以下命令需要 Docker 访问权及数据目录写入权；源码目录和运行数据建议分开：
 
 ```bash
 git clone https://github.com/Csneer/ms-zerotier-planet.git
 cd ms-zerotier-planet
-./install.sh --ip YOUR_PUBLIC_IPV4
+./install.sh --ip YOUR_PUBLIC_IPV4 --data-dir /srv/zerotier-planet
 ```
 
-安装完成后访问 `http://127.0.0.1:3443`，默认登录 `admin/password`，首次登录立即修改密码。然后：
+管理台默认只监听云服务器自己的 `127.0.0.1`。如果你从自己的电脑管理，在自己的电脑上保持 SSH 隧道：
+
+```bash
+ssh -N -L 3443:127.0.0.1:3443 user@server
+```
+
+然后在自己的浏览器访问 `http://127.0.0.1:3443`，默认登录 `admin/password`，首次登录立即修改密码。也可以在确认安全组和访问控制后，将 `HTTP_HOST` 或 `HTTP_EXTRA_HOSTS` 配置为服务器的 ZeroTier 地址。
+
+接下来：
 
 1. 在 `Networks` 创建虚拟网络。
 2. 在 `Downloads` 下载 `planet`，把它安装到每台客户端的 ZeroTier 数据目录。
@@ -46,8 +54,17 @@ cd ms-zerotier-planet
 
 ```bash
 ./install.sh --ip YOUR_PUBLIC_IPV4 --pull \
-  --image ghcr.io/csneer/ms-zerotier-planet:v1.0.0
+  --image ghcr.io/csneer/ms-zerotier-planet:v1.0.0 \
+  --data-dir /srv/zerotier-planet
 ```
+
+源码构建会访问 Debian、ZeroTier 和 GitHub 上游。国内主机可以保留默认的 `DEBIAN_MIRROR=mirrors.aliyun.com`；其他地域或无法访问阿里云镜像时，使用 `DEBIAN_MIRROR=default`：
+
+```bash
+DEBIAN_MIRROR=default ./install.sh --ip YOUR_PUBLIC_IPV4 --data-dir /srv/zerotier-planet
+```
+
+如果首次安装在依赖检查、镜像拉取或构建阶段失败，脚本会保留 `.env` 和已创建的数据目录。修复原因后不要再次带初始化参数，先执行 `./manage.sh doctor`，再执行 `./manage.sh up`；只有确认要重建配置时才备份并人工编辑 `.env`。
 
 需要由编码 Agent 或自动化流程执行安装、升级和验收时，请按 [Agent 安装与验收指引](docs/agent-install.md) 操作。
 
@@ -70,6 +87,7 @@ cd ms-zerotier-planet
 - 首页与连接监控共用 Controller / World / Root 拓扑，区分近期回应、过期路径和不可用探针；同一后台可监听回环及多个明确的 ZeroTier 地址。
 - 安装、升级、备份、恢复和卸载均使用非破坏性脚本；危险操作需要显式 `--yes`。
 - GitHub Actions 自动构建 `amd64`/`arm64`，并发布到本仓库对应的 GHCR。
+- 受限 2 vCPU / 2 GiB 实测与容量记录见[小规格云主机基准](docs/capacity-benchmark.md)；空载运行开销不能代表中转吞吐或成员上限。
 
 ## 环境要求
 
@@ -99,7 +117,7 @@ cd ms-zerotier-planet
 ```bash
 git clone https://github.com/Csneer/ms-zerotier-planet.git
 cd ms-zerotier-planet
-./install.sh --ip 203.0.113.10
+./install.sh --ip 203.0.113.10 --data-dir /srv/zerotier-planet
 ```
 
 可选参数：
@@ -138,7 +156,7 @@ CONTAINER_NAME=myztplanet-root-b ./install.sh --ip 203.0.113.20 \
 只生成并检查 `.env`，不启动 Docker：
 
 ```bash
-./install.sh --ip 203.0.113.10 --configure-only
+./install.sh --ip 203.0.113.10 --data-dir /srv/zerotier-planet --configure-only
 ```
 
 使用你在 GHCR 发布的预构建镜像：
@@ -323,6 +341,14 @@ git pull --ff-only
 - Linux：`/var/lib/zerotier-one/planet`
 - Windows：`C:\ProgramData\ZeroTier\One\planet`
 - macOS：`/Library/Application Support/ZeroTier/One/planet`
+
+| 平台 | 当前验证范围 | 接入要求 |
+| --- | --- | --- |
+| Linux | 已有容器启动、签名更新和隔离网络回归 | 有权限停止服务并替换数据目录中的 Planet；实际部署仍应验证端到端访问 |
+| Windows / macOS | 提供常见文件路径，本轮未做真机回归 | 管理员权限替换 Planet 后，验证加入网络及服务访问 |
+| Android / iOS | 未验证私有 Planet 接入 | 官方客户端能否导入及所需权限取决于版本和设备策略；普通客户端加入 Network ID 不等于接入私有 Planet |
+
+移动端接入前，请用有恢复办法的测试设备验证 Planet 导入、加入网络和端到端访问，再决定是否用于日常连接。
 
 替换文件前必须停止 ZeroTier；具体路径可能因客户端发行版而不同。
 

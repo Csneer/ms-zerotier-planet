@@ -83,6 +83,7 @@ jobs:
           done
           for source in patch/*.js; do node --check "$source"; done
           node --check tests/multi-root.mjs
+          node --check tests/browser/run.mjs
           for source in tests/*.cjs; do node --check "$source"; done
           python3 -m py_compile scripts/controller_standby.py tests/controller-standby.py
           python3 tests/controller-standby.py
@@ -92,6 +93,8 @@ jobs:
           node tests/install-config.cjs
           node tests/root-status.cjs
           node tests/ui-listen.cjs
+          node tests/ui-interactions.cjs
+          node tests/manage-restore.cjs
           node tests/manage-upgrade.cjs
           node tests/native-root.cjs
           docker compose config --quiet
@@ -169,6 +172,25 @@ jobs:
         # This test uses only disposable identities and a local image; it does
         # not activate a candidate or touch a production signer.
         run: sudo "$(command -v node)" tests/root-manage.cjs zerotier-planet:ci-test
+
+      - name: Verify ordinary backup, disaster recovery and rollback
+        run: sudo "$(command -v node)" tests/manage-restore-docker.cjs zerotier-planet:ci-test
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: tests/browser/package-lock.json
+
+      - name: Install browser regression dependencies
+        run: |
+          npm ci --prefix tests/browser
+          cd tests/browser
+          npx playwright install --with-deps chromium
+
+      - name: Verify network workflows in Chromium
+        timeout-minutes: 10
+        run: node tests/browser/run.mjs zerotier-planet:ci-test
 
       - name: Build and optionally publish
         uses: docker/build-push-action@v7

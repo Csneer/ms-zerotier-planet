@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+### Added
+
+- Disposable Chromium regressions for login, network creation, CIDR validation, rename and member persistence, language switching and mobile navigation, plus real Docker backup/recovery/rollback checks in CI.
+- A small-server resource baseline and a repeatable direct/relay capacity-testing guide; no fixed throughput or member-capacity claims.
+
+### Fixed
+
+- Restore now checks complete checksum coverage, safe paths, required state and deployment roles before stopping the instance; damaged installations with missing data directories can recover from a valid offline backup.
+- Restore rollback failures keep recovery paths available and prevent automatic startup with partially exchanged data.
+- Network renaming handles Escape, duplicate blur/Enter events and failed saves correctly; member saves return explicit success/error responses and support clearing names.
+- Easy network setup validates integer IPv4 CIDR prefixes and usable address pools in both the browser and backend; language links retain the Controller route.
+- First-install failures explain how to retry using the retained configuration. Installation docs use a separate data directory, describe SSH access to the loopback Web listener and clarify client compatibility.
+
 ## [1.0.0] - 2026-10-16
 
 First project release; earlier unversioned changes are collected here without inventing historical releases. Project versions are independent of ZeroTier versions.

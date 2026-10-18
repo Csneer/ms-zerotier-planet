@@ -30,6 +30,46 @@ cleanup() {
 }
 trap cleanup EXIT
 
+# Restore swaps stop the service before changing any live directory.  Once the
+# first swap starts, an EXIT trap must never restart the service automatically:
+# a failed rename or deletion can leave an operator-visible recovery layout.
+# Keep rollback best-effort but explicit so `set -e` cannot turn a cleanup
+# failure into an implicit restart of mixed data.
+restore_rollback_swaps() {
+    local j target old_path rollback_failed=0
+    for ((j=swapped - 1; j >= 0; j--)); do
+        target=${restore_targets[$j]}
+        old_path=${old_targets[$j]}
+        if [[ -e "$target" ]] && ! rm -rf -- "$target"; then
+            warn "rollback could not remove staged directory: $target; pre-restore data: $old_path"
+            rollback_failed=1
+            continue
+        fi
+        if [[ ! -e "$old_path" ]] || ! mv -- "$old_path" "$target"; then
+            warn "rollback could not restore pre-restore directory: $old_path -> $target"
+            rollback_failed=1
+        fi
+    done
+    return "$rollback_failed"
+}
+
+restore_cleanup_artifacts() {
+    local item cleanup_failed=0
+    for item in "${stages[@]}"; do
+        if [[ -e "$item" ]] && ! rm -rf -- "$item"; then
+            warn "could not remove restore staging directory; leaving it for recovery: $item"
+            cleanup_failed=1
+        fi
+    done
+    for item in "${missing_targets[@]}"; do
+        if [[ -e "$item" ]] && ! rmdir -- "$item"; then
+            warn "could not remove temporary empty directory; leaving it for recovery: $item"
+            cleanup_failed=1
+        fi
+    done
+    return "$cleanup_failed"
+}
+
 usage() {
     cat <<'EOF'
 Usage: ./manage.sh COMMAND [options]
@@ -195,7 +235,7 @@ backup_root() {
 }
 
 backup_data() {
-    local online=${1:-0} resume=${2:-1}
+    local online=${1:-0} resume=${2:-1} recovery=${3:-0}
     local name was_running=0 stamp destination label source
     local -a labels=(dist one config ztncui-state)
     local -a targets=(/app/dist /var/lib/zerotier-one /app/config /var/lib/ztncui)
@@ -223,6 +263,10 @@ backup_data() {
     for i in "${!labels[@]}"; do
         label=${labels[$i]}
         source=$(mount_source "${targets[$i]}")
+        if ((recovery)) && [[ -n "$source" && ! -e "$source" ]]; then
+            install -d -m 0700 "$destination/$label"
+            continue
+        fi
         if [[ -z "$source" || ! -d "$source" ]]; then
             if ((was_running && online == 0 && resume)); then
                 docker compose start "$SERVICE" || true
@@ -236,6 +280,12 @@ backup_data() {
             fi
             die "failed to copy $source"
         fi
+        # The ZeroTier state directory ships convenience symlinks to binaries
+        # in the image (zerotier-one, zerotier-cli and zerotier-idtool).  They
+        # are not persistent state and must not enter an offline backup: the
+        # restore validator intentionally rejects every symlink to prevent a
+        # crafted backup from redirecting writes outside its dataset.
+        find "$destination/$label" -type l -delete
     done
 
     cp -p .env docker-compose.yml "$destination/"
@@ -243,8 +293,17 @@ backup_data() {
         docker inspect "$name" >"$destination/container-inspect.json"
     fi
     {
+        printf 'backup_format=2\n'
+        printf 'PLANET_MODE=%s\n' "$(config_value ".services.${SERVICE}.environment.PLANET_MODE // \"generated\"")"
+        printf 'ROOT_ONLY=%s\n' "$(config_value ".services.${SERVICE}.environment.ROOT_ONLY // \"0\"")"
+        printf 'CONTROLLER_ONLY=%s\n' "$(config_value ".services.${SERVICE}.environment.CONTROLLER_ONLY // \"0\"")"
         printf 'created_at=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-        if ((online == 0)); then
+        if ((recovery)); then
+            printf 'consistency=recovery\n'
+            for i in "${!labels[@]}"; do
+                [[ -e "$(mount_source "${targets[$i]}")" ]] || printf 'missing_dataset=%s\n' "${labels[$i]}"
+            done
+        elif ((online == 0)); then
             printf 'consistency=offline\n'
         else
             printf 'consistency=online\n'
@@ -256,7 +315,7 @@ backup_data() {
     (
         cd "$destination"
         sums=$(mktemp .SHA256SUMS.tmp.XXXXXXXX)
-        find . -type f ! -name SHA256SUMS ! -name "$sums" -print0 | sort -z | xargs -0 sha256sum >"$sums"
+        find . -type f ! -path ./SHA256SUMS ! -path "./$sums" -print0 | sort -z | xargs -0 sha256sum >"$sums"
         mv -- "$sums" SHA256SUMS
         sha256sum -c SHA256SUMS >/dev/null
     )
@@ -502,21 +561,158 @@ cmd_backup() {
     backup_data "$online" 1
 }
 
+# Restore validates its input before stopping or writing to the current instance.
+validate_restore_backup() {
+    require_command python3
+    python3 - "$@" <<'PYBACKUP'
+import hashlib
+import os
+from pathlib import Path
+import re
+import stat
+import sys
+
+root = Path(sys.argv[1])
+def require(condition, message):
+    if not condition:
+        raise ValueError(message)
+
+def validate():
+    require(root.is_dir(), "backup is not a directory")
+    actual = set()
+    def walk_error(error):
+        raise error
+    for parent, dirs, files in os.walk(root, followlinks=False, onerror=walk_error):
+        for name in dirs + files:
+            item = Path(parent) / name
+            mode = item.lstat().st_mode
+            require(stat.S_ISDIR(mode) or stat.S_ISREG(mode), "backup contains symlink or special file")
+            if stat.S_ISREG(mode):
+                actual.add(item.relative_to(root).as_posix())
+    require("SHA256SUMS" in actual, "backup has no SHA256SUMS")
+    recorded = set()
+    for line in (root / "SHA256SUMS").read_text().splitlines():
+        match = re.fullmatch(r"([0-9a-f]{64}) [ *](.+)", line)
+        require(match, "unsupported checksum entry")
+        name = match[2]
+        if name.startswith("./"):
+            name = name[2:]
+        require(name and not name.startswith("/") and all(part not in ("", ".", "..") for part in name.split("/")),
+                "unsafe checksum path")
+        require(name != "SHA256SUMS" and name not in recorded, "duplicate/self checksum entry")
+        require(name in actual, "missing checksum file")
+        digest = hashlib.sha256()
+        with (root / name).open("rb") as handle:
+            for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                digest.update(chunk)
+        require(digest.hexdigest() == match[1], "backup checksum mismatch")
+        recorded.add(name)
+    require(recorded == actual - {"SHA256SUMS"}, "backup contains unlisted files")
+    def required(name):
+        require(name in recorded and (root / name).stat().st_size > 0, "missing required state: " + name)
+    for label in ("dist", "one", "config", "ztncui-state"):
+        require((root / label).is_dir(), "missing dataset: " + label)
+    for name in ("manifest.env", ".env", "docker-compose.yml", "one/identity.secret", "one/identity.public", "one/planet", "dist/planet"):
+        required(name)
+    def metadata(file, roles_only=False):
+        result = {}
+        for line in (root / file).read_text().splitlines():
+            if not line.strip() or line.lstrip().startswith("#"):
+                continue
+            match = re.fullmatch(r"\s*([A-Za-z_][A-Za-z_0-9]*)\s*=\s*(.*)", line)
+            if roles_only and (not match or match[1] not in ("PLANET_MODE", "ROOT_ONLY", "CONTROLLER_ONLY")):
+                continue
+            require(match, "invalid metadata: " + file)
+            key, value = match.groups()
+            require(key not in result, "duplicate metadata key: " + key)
+            if roles_only:
+                parsed = re.fullmatch(r"(?:'([^']*)'|\"([^\"]*)\"|([^\s#'\"]+))\s*(?:#.*)?", value)
+                require(parsed, "ambiguous backup role value: " + key)
+                value = next(part for part in parsed.groups() if part is not None)
+            result[key] = value
+        return result
+    manifest = metadata("manifest.env")
+    require(manifest.get("consistency") == "offline", "restore requires an offline backup")
+    require(manifest.get("repository_revision") and manifest.get("image"), "missing backup version metadata")
+    env = metadata(".env", roles_only=True)
+    keys = ("PLANET_MODE", "ROOT_ONLY", "CONTROLLER_ONLY")
+    if manifest.get("backup_format") == "2":
+        require(all(key in manifest for key in keys), "missing resolved backup role metadata")
+        roles = manifest
+    else:
+        # Legacy backups lack resolved Compose configuration. Require explicit
+        # roles rather than guessing defaults for an ambiguous old snapshot.
+        require(all(key in env for key in keys), "legacy backup lacks explicit roles; create a new backup")
+        roles = env
+    mode, root_only, controller_only = (roles[key] for key in keys)
+    require(controller_only == "0", "Controller-only backups require controller stage")
+    if len(sys.argv) > 2:
+        require(list(sys.argv[2:]) == [mode, root_only, controller_only], "backup role does not match the current Compose role")
+    require(mode in ("generated", "external") and root_only in ("0", "1") and controller_only in ("0", "1"), "invalid backup role")
+    require(controller_only == "0" or (root_only == "0" and mode == "external"), "invalid backup role combination")
+    if mode == "external":
+        required("config/planet")
+    else:
+        for name in ("one/current.c25519", "one/previous.c25519", "one/moon.json"):
+            required(name)
+    if root_only == "0":
+        required("ztncui-state/passwd")
+        required("config/session.secret")
+        # A Controller with no networks is legitimate; its network directory
+        # need not exist until the first network is created.
+    require(not (root / "config/controller-standby.json").exists(), "managed standby backup requires controller stage")
+try:
+    validate()
+except (ValueError, OSError, UnicodeError) as error:
+    print("[planet] ERROR: " + str(error), file=sys.stderr)
+    sys.exit(1)
+PYBACKUP
+}
+
+restore_preflight() {
+    local target source other root
+    local -a sources=()
+    require_command docker
+    require_command jq
+    require_command realpath
+    docker compose version >/dev/null 2>&1 || die 'Docker Compose v2 is required'
+    docker info >/dev/null 2>&1 || die 'cannot connect to the Docker daemon'
+    load_config
+    for target in /app/dist /var/lib/zerotier-one /app/config /var/lib/ztncui; do
+        source=$(mount_source "$target")
+        safe_directory "$source" || die "unsafe persistent path for $target: $source"
+        [[ ! -e "$source" || -d "$source" ]] || die "persistent path is not a directory: $source"
+        for other in "${sources[@]}"; do
+            paths_overlap "$source" "$other" && die "persistent paths overlap: $source and $other"
+        done
+        sources+=("$source")
+    done
+    root=$(backup_root)
+    safe_directory "$root" || die "unsafe BACKUP_DIR: $root"
+    for source in "${sources[@]}"; do
+        paths_overlap "$root" "$source" && die "BACKUP_DIR overlaps persistent data: $root and $source"
+    done
+    return 0
+}
+
 cmd_restore() {
     local source=${1:-} confirm=${2:-}
-    local target label current_backup was_running=0 stamp parent base stage old failed_path
-    local i j swapped=0
+    local target label current_backup was_running=0 stamp parent base stage old failed_path recovering=0
+    local i swapped=0 rollback_failed=0
     local -a labels=(dist one config ztncui-state)
     local -a targets=(/app/dist /var/lib/zerotier-one /app/config /var/lib/ztncui)
-    local -a restore_targets=() stages=() old_targets=() failed_targets=()
+    local -a restore_targets=() stages=() old_targets=() failed_targets=() missing_targets=()
     [[ -n "$source" && "$confirm" == --yes && $# == 2 ]] || die 'usage: ./manage.sh restore BACKUP --yes'
+    [[ "$(realpath -m -- "$source")" == "$(realpath -ms -- "$source")" ]] \
+        || die 'backup path must not contain symlinks'
     source=$(realpath -e -- "$source") || die 'backup directory does not exist'
-    [[ -f "$source/SHA256SUMS" ]] || die 'backup has no SHA256SUMS manifest'
-    for label in "${labels[@]}"; do
-        [[ -d "$source/$label" ]] || die "backup is missing: $label"
-    done
-    (cd "$source" && sha256sum -c SHA256SUMS >/dev/null) || die 'backup checksum verification failed'
-    cmd_doctor
+    validate_restore_backup "$source" || die 'backup validation failed'
+    restore_preflight
+    validate_restore_backup "$source" \
+        "$(config_value ".services.${SERVICE}.environment.PLANET_MODE // \"generated\"")" \
+        "$(config_value ".services.${SERVICE}.environment.ROOT_ONLY // \"0\"")" \
+        "$(config_value ".services.${SERVICE}.environment.CONTROLLER_ONLY // \"0\"")" \
+        || die 'backup role validation failed'
     [[ ! -e "$(mount_source /app/config)/controller-standby.json" ]] \
         || die 'Managed Controller standby: use controller stage, not restore (which starts the service)'
     for target in "${targets[@]}"; do
@@ -524,7 +720,10 @@ cmd_restore() {
         paths_overlap "$source" "$target" && die "backup source overlaps restore target: $source and $target"
     done
     container_running && was_running=1
-    backup_data 0 0
+    for target in "${targets[@]}"; do
+        [[ -e "$(mount_source "$target")" ]] || recovering=1
+    done
+    backup_data 0 0 "$recovering"
     current_backup=$LAST_BACKUP
     ((was_running == 0)) || RESUME_SERVICE_ON_EXIT=1
     stamp=$(date +%Y%m%d-%H%M%S)
@@ -535,11 +734,15 @@ cmd_restore() {
         label=${labels[$i]}
         target=$(mount_source "${targets[$i]}")
         safe_directory "$target" || die "refusing to replace unsafe path: $target"
+        if [[ ! -e "$target" ]]; then
+            missing_targets+=("$target")
+        fi
         install -d -m 0700 "$target"
         parent=$(dirname -- "$target")
         base=$(basename -- "$target")
         stage=$(mktemp -d "$parent/.${base}.restore.XXXXXXXX") || {
             for stage in "${stages[@]}"; do rm -rf -- "$stage"; done
+            for target in "${missing_targets[@]}"; do rmdir -- "$target" 2>/dev/null || true; done
             die "failed to create restore staging directory beside $target"
         }
         chmod 0700 "$stage"
@@ -547,51 +750,62 @@ cmd_restore() {
         stages[i]=$stage
         if ! cp -a --reflink=auto "$source/$label/." "$stage/"; then
             for stage in "${stages[@]}"; do rm -rf -- "$stage"; done
+            for target in "${missing_targets[@]}"; do rmdir -- "$target" 2>/dev/null || true; done
             die "failed to stage backup data for $label; live data was not changed"
         fi
     done
 
+    # Never let EXIT cleanup start a partially exchanged set of directories.
+    RESUME_SERVICE_ON_EXIT=0
     for i in "${!labels[@]}"; do
         label=${labels[$i]}
         target=${restore_targets[$i]}
         old="${target}.pre-restore-${stamp}-$$"
         old_targets[i]=$old
         if [[ -e "$old" ]] || ! mv -- "$target" "$old"; then
-            for ((j=swapped - 1; j >= 0; j--)); do
-                rm -rf -- "${restore_targets[$j]}"
-                mv -- "${old_targets[$j]}" "${restore_targets[$j]}" || true
-            done
-            for stage in "${stages[@]}"; do [[ ! -e "$stage" ]] || rm -rf -- "$stage"; done
+            restore_rollback_swaps || die "rollback incomplete; service remains stopped; manual recovery required; recovery snapshot: $current_backup"
+            restore_cleanup_artifacts || die "rollback data restored but cleanup failed; service remains stopped; recovery snapshot: $current_backup"
+            if ((was_running)); then
+                docker compose start "$SERVICE" && wait_healthy || die "rollback data restored but service restart failed; recovery snapshot: $current_backup"
+            fi
             die "failed to preserve the current $label directory; restore was rolled back"
         fi
         if ! mv -- "${stages[$i]}" "$target"; then
-            mv -- "$old" "$target" || true
-            for ((j=swapped - 1; j >= 0; j--)); do
-                rm -rf -- "${restore_targets[$j]}"
-                mv -- "${old_targets[$j]}" "${restore_targets[$j]}" || true
-            done
-            for stage in "${stages[@]}"; do [[ ! -e "$stage" ]] || rm -rf -- "$stage"; done
+            if ! mv -- "$old" "$target"; then
+                warn "rollback could not restore pre-restore directory: $old -> $target; staged data: ${stages[$i]}"
+                rollback_failed=1
+            fi
+            restore_rollback_swaps || rollback_failed=1
+            ((rollback_failed == 0)) || die "rollback incomplete; service remains stopped; manual recovery required; recovery snapshot: $current_backup"
+            restore_cleanup_artifacts || die "rollback data restored but cleanup failed; service remains stopped; recovery snapshot: $current_backup"
+            if ((was_running)); then
+                docker compose start "$SERVICE" && wait_healthy || die "rollback data restored but service restart failed; recovery snapshot: $current_backup"
+            fi
             die "failed to activate staged $label data; restore was rolled back"
         fi
         swapped=$((swapped + 1))
     done
 
     if ! docker compose up -d --no-build --force-recreate "$SERVICE" || ! wait_healthy; then
+        RESUME_SERVICE_ON_EXIT=0
         warn 'restored data failed its health check; returning to the pre-restore data'
-        docker compose down --remove-orphans >/dev/null 2>&1 || true
+        if ! docker compose down --remove-orphans >/dev/null 2>&1; then
+            RESUME_SERVICE_ON_EXIT=0
+            die "restore health check failed and the new service could not be stopped; live data left in place: ${restore_targets[*]}; pre-restore data: ${old_targets[*]}; manual recovery required; recovery snapshot: $current_backup"
+        fi
         for ((i=${#labels[@]} - 1; i >= 0; i--)); do
             target=${restore_targets[$i]}
             failed_path="${target}.failed-restore-${stamp}-$$"
             failed_targets[i]=$failed_path
             if ! mv -- "$target" "$failed_path"; then
-                die "restore failed and the new $target directory could not be moved aside; verified backup: $current_backup"
+                die "restore failed and $target could not be moved aside; pre-restore data: ${old_targets[$i]}; service remains stopped; manual recovery required; recovery snapshot: $current_backup"
             fi
             if ! mv -- "${old_targets[$i]}" "$target"; then
-                mv -- "$failed_path" "$target" || true
-                die "restore failed and pre-restore data could not be reactivated; verified backup: $current_backup"
+                die "rollback could not restore ${old_targets[$i]} -> $target; failed data: $failed_path; service remains stopped; manual recovery required; recovery snapshot: $current_backup"
             fi
         done
-        if docker compose up -d --no-build "$SERVICE" && wait_healthy; then
+        for target in "${missing_targets[@]}"; do rmdir -- "$target" 2>/dev/null || true; done
+        if ((was_running == 0)) || { docker compose up -d --no-build "$SERVICE" && wait_healthy; }; then
             RESUME_SERVICE_ON_EXIT=0
             for failed_path in "${failed_targets[@]}"; do rm -rf -- "$failed_path"; done
             die "restore failed its health check and was rolled back; verified backup: $current_backup"

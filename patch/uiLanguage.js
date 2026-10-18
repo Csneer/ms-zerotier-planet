@@ -149,7 +149,8 @@ const messages = {
   'network.cidr': ['网络地址（CIDR）', 'Network address (CIDR)'],
   'network.pool_start': ['地址池起始 IP', 'Pool start address'],
   'network.pool_end': ['地址池结束 IP', 'Pool end address'],
-  'network.invalid_cidr': ['无效的网络 CIDR', 'Invalid network CIDR'],
+  'network.invalid_pool': ['地址池须位于网段的可用主机范围内，且起始地址不能大于结束地址', 'The pool must contain usable addresses in this network, with its start at or before its end'],
+  'network.invalid_cidr': ['请输入有效的 IPv4 网段，前缀须为 1–30 的整数', 'Enter a valid IPv4 network with a whole-number prefix from 1 to 30'],
   'network.setup_success': ['网络配置成功', 'Network setup succeeded'],
   'routes.title': ['托管路由', 'Managed routes'],
   'routes.description': ['配置网络成员可访问的网段；直连 ZeroTier 网段可将网关留空。', 'Configure subnets reachable by members; leave the gateway blank for the directly attached ZeroTier subnet.'],
@@ -469,7 +470,8 @@ module.exports = function uiLanguage(req, res, next) {
   res.locals.lang = language;
   res.locals.t = translate;
   res.locals.localize_error = localizeError;
-  res.locals.language_url = target => `${req.path}?lang=${normalizeLanguage(target) || DEFAULT_LANGUAGE}`;
+  const pagePath = (req.originalUrl || (req.baseUrl || '') + req.path).split('?')[0];
+  res.locals.language_url = target => `${pagePath}?lang=${normalizeLanguage(target) || DEFAULT_LANGUAGE}`;
   next();
 };
 

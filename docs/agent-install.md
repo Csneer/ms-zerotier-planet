@@ -70,6 +70,12 @@ IMAGE_REF=ghcr.io/csneer/ms-zerotier-planet:v1.0.0
 
 源码构建会下载并编译 ZeroTier 依赖。在 2 vCPU/2 GiB 主机上若构建资源不足或上游下载不稳定，应改用已审核的预构建镜像；不要关闭 TLS 校验或把临时构建文件提交进仓库。
 
+默认镜像为 `mirrors.aliyun.com`，适合相应地域的主机。其他地域或该镜像不可达时，使用 `DEBIAN_MIRROR=default`：
+
+```bash
+DEBIAN_MIRROR=default ./install.sh --ip 203.0.113.10 --data-dir /srv/zerotier-planet
+```
+
 ## 只配置、不启动
 
 Agent 需要先把配置交给人工审核，或等待外部 Root 文件到位时，使用 `--configure-only`：
@@ -97,7 +103,13 @@ curl --fail --silent --show-error http://127.0.0.1:3443/healthz
 
 预期结果：Compose 服务为 `running`/`healthy`，健康端点返回 `ok`。`./manage.sh status` 还会显示 ZeroTier 状态、Planet/World 信息和已观测的 Planet peer。不要只凭容器为 `running` 判定成功；若要确认内网穿透路径，应在独立网络的客户端安装同一份 `planet`，加入测试网络，并运行客户端 `zerotier-cli peers` 与实际端到端传输测试。
 
-Web 管理台入口默认为 `http://127.0.0.1:3443`。登录后进入 `Downloads` 下载 `planet`，核对页面显示的 SHA-256，再停止客户端 ZeroTier 服务、替换客户端数据目录中的 `planet` 并启动服务。Linux、Windows、macOS 的常见目录见主 README。
+Web 管理台默认只监听服务器的 `127.0.0.1:3443`。从 Agent 所在电脑访问云服务器时，在电脑本地建立 SSH 隧道，再打开浏览器：
+
+```bash
+ssh -N -L 3443:127.0.0.1:3443 user@server
+```
+
+登录后进入 `Downloads` 下载 `planet`，核对页面显示的 SHA-256，再停止客户端 ZeroTier 服务、替换客户端数据目录中的 `planet` 并启动服务。Linux、Windows、macOS 的常见目录见主 README；Android/iOS 的私有 Planet 导入权限因客户端版本和设备策略不同，Agent 不得直接声称已验证。
 
 ## 日常升级与备份
 
@@ -124,10 +136,13 @@ git pull --ff-only
 | `--ip is required when creating .env` | 新部署缺少真实公网 IPv4；补充 `--ip`，不要填文档保留地址。Controller-only 备用实例按其专用指南配置。 |
 | `.env already exists; edit it explicitly...` | 这是保护机制。停止重复初始化，先读取并人工审查 `.env`，再按维护流程操作。 |
 | `cannot connect to the Docker daemon` 或 Compose 版本错误 | 由主机管理员安装/启动 Docker Engine 和 Compose v2；安装脚本不会静默修改主机。 |
+| 安装在依赖、拉取或构建阶段失败 | `.env` 和数据目录会保留；修复环境后运行 `./manage.sh doctor && ./manage.sh up`，不要再次给已有 `.env` 传 `--ip` 或 `--data-dir`。 |
 | `IP_ADDR4 still contains the example address` | `.env` 仍是 `203.0.113.10`，改成真实公网地址后重新执行 `./manage.sh doctor`。 |
 | `External mode requires config/planet` 或 `prepared Root identity` | 这是 `external` 的强制前置条件。准备并验证签名 Planet 和独立 Root identity，不要复制其他实例的 `one/`。 |
 | 健康检查失败、端口已占用或 `HTTP_HOST` 不可用 | 执行 `./manage.sh logs --tail 200`、`ss -lntup` 和 `./manage.sh status`；确认 `ZT_PORT`/`API_PORT` 不冲突，Web 地址是本机真实 IP。 |
 | 源码构建在上游 GitHub 下载阶段失败 | 保留原始错误和构建版本，优先改用已审核镜像；不要关闭 TLS 校验、替换未知源码或提交临时 Dockerfile。 |
+
+2 vCPU / 2 GiB 的空载实测、运行限制和中转容量测试方法见[小规格云主机基准](capacity-benchmark.md)。空载内存不能作为成员数量或中转吞吐承诺。
 
 ## Agent 完成回报
 

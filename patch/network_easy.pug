@@ -1,6 +1,7 @@
 extends network_layout
 
 block net_content
+  script(src='/javascripts/networkValidation.js')
   script.
     function randomOctet() {
       return Math.floor(Math.random() * 255);
@@ -20,25 +21,30 @@ block net_content
     }
 
     function CIDRtoPool(CIDR) {
-      var parts = CIDR.split('/');
-      var start = parts[0];
-      var prefix = Number(parts[1]);
-      var valid = prefix > 0 && prefix < 33 &&
-        /^(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/.test(start);
-      var poolStart = document.getElementById('poolStart');
-      var poolEnd = document.getElementById('poolEnd');
-      if (!valid) {
-        poolStart.value = !{JSON.stringify(t('network.invalid_cidr'))};
-        poolEnd.value = !{JSON.stringify(t('network.invalid_cidr'))};
+      var range = networkValidation.cidr(CIDR);
+      var field = document.getElementById('networkCIDR');
+      field.setCustomValidity(range ? '' : !{JSON.stringify(t('network.invalid_cidr'))});
+      if (!range) {
+        field.reportValidity();
         return;
       }
-      var host32 = ((1 << (32 - prefix)) - 1) >>> 0;
-      var octets = start.split('.').map(Number);
-      var net32 = ((octets[0] << 24) + (octets[1] << 16) + (octets[2] << 8) + octets[3]) >>> 0;
-      net32 = (net32 & ~host32) >>> 0;
-      document.getElementById('networkCIDR').value = int32toIPv4String(net32) + '/' + prefix;
-      poolStart.value = int32toIPv4String((net32 + 1) >>> 0);
-      poolEnd.value = int32toIPv4String((net32 + host32 - 1) >>> 0);
+      field.value = int32toIPv4String(range.network) + '/' + range.prefix;
+      document.getElementById('poolStart').value = int32toIPv4String(range.first);
+      document.getElementById('poolEnd').value = int32toIPv4String(range.last);
+    }
+
+    function validateEasyForm() {
+      var cidr = document.getElementById('networkCIDR');
+      var start = document.getElementById('poolStart');
+      var end = document.getElementById('poolEnd');
+      cidr.setCustomValidity('');
+      end.setCustomValidity('');
+      var error = networkValidation.validate({networkCIDR: cidr.value, poolStart: start.value, poolEnd: end.value});
+      if (!error) return true;
+      var field = error === 'network.invalid_cidr' ? cidr : end;
+      field.setCustomValidity(error === 'network.invalid_cidr' ? !{JSON.stringify(t('network.invalid_cidr'))} : !{JSON.stringify(t('network.invalid_pool'))});
+      field.reportValidity();
+      return false;
     }
 
   section.surface-card.form-card
@@ -61,7 +67,7 @@ block net_content
     .alert.alert-info
       strong= t('network.easy_ipv4_only')
 
-    form(method='POST' action='')
+    form(method='POST' action='' onsubmit='return validateEasyForm()' oninput="document.getElementById('networkCIDR').setCustomValidity(''); document.getElementById('poolEnd').setCustomValidity('')")
       .form-actions.form-actions-top
         button#genIPv4.btn.btn-default(type='button' onclick='randomIPv4()')
           span.glyphicon.glyphicon-random(aria-hidden='true')
