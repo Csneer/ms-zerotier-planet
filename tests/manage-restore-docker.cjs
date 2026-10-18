@@ -110,6 +110,14 @@ async function main() {
   manage(['up'], { extraEnv: { HEALTH_TIMEOUT_SECONDS: '45' } });
   state('seed');
   const before = hashes();
+  // The three image-provided ZeroTier tool links are excluded explicitly;
+  // any user/TLS link must fail the backup instead of being silently dropped.
+  const tlsLink = path.join(data, 'ztncui-state', 'tls', 'fullchain.pem');
+  fs.symlinkSync('/outside/tls-fullchain.pem', tlsLink);
+  const rejectedSymlink = manage(['backup'], { ok: false });
+  assert.match(rejectedSymlink.stderr, /unsupported symbolic link/);
+  assert.equal(fs.readdirSync(backups).length, 0, 'rejected symlink must not create a backup');
+  fs.unlinkSync(tlsLink);
   manage(['backup']);
   const backupNames = fs.readdirSync(backups); assert.equal(backupNames.length, 1);
   const backup = path.join(backups, backupNames[0]);

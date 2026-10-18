@@ -280,12 +280,26 @@ backup_data() {
             fi
             die "failed to copy $source"
         fi
-        # The ZeroTier state directory ships convenience symlinks to binaries
-        # in the image (zerotier-one, zerotier-cli and zerotier-idtool).  They
-        # are not persistent state and must not enter an offline backup: the
-        # restore validator intentionally rejects every symlink to prevent a
-        # crafted backup from redirecting writes outside its dataset.
-        find "$destination/$label" -type l -delete
+        # The ZeroTier state directory ships three convenience symlinks to
+        # binaries in the image.  They are not persistent state and must not
+        # enter an offline backup.  Keep every other symlink rejected rather
+        # than silently discarding user data or hiding a redirected path.
+        if [[ "$label" == one ]]; then
+            for tool in zerotier-one zerotier-cli zerotier-idtool; do
+                tool_path="$destination/$label/$tool"
+                if [[ -L "$tool_path" ]]; then
+                    tool_target=$(readlink -- "$tool_path")
+                    [[ "$tool_target" == /usr/sbin/zerotier-one ]] \
+                        || die "unsupported symbolic link in backup source: $label/$tool -> $tool_target"
+                    rm -f -- "$tool_path"
+                fi
+            done
+        fi
+        link=$(find "$destination/$label" -type l -print -quit)
+        if [[ -n "$link" ]]; then
+            link_target=$(readlink -- "$link" 2>/dev/null || printf '<unreadable>')
+            die "unsupported symbolic link in backup source: ${link#"$destination/"} -> $link_target"
+        fi
     done
 
     cp -p .env docker-compose.yml "$destination/"
