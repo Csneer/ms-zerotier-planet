@@ -2,11 +2,56 @@
 
 [English](README.en.md)
 
-这是一个支持 **同一 Planet 多 Root 热切换与原地升级** 的 ZeroTier 自托管项目，包含 Planet、Controller 和统一 Web 管理控制台。这里的热切换指客户端使用备用 Root 恢复中转，不承诺无缝、秒级或既有 TCP 会话不中断；Controller 仍为单活。核对旧数据布局、身份与签名链后，可以保留原 Network ID、授权和虚拟 IP 接管已有 Planet 项目。
+[![CI](https://github.com/Csneer/ms-zerotier-planet/actions/workflows/image-build.yml/badge.svg)](https://github.com/Csneer/ms-zerotier-planet/actions/workflows/image-build.yml)
+[![Latest release](https://img.shields.io/github/v/release/Csneer/ms-zerotier-planet?display_name=tag)](https://github.com/Csneer/ms-zerotier-planet/releases)
 
-每份 Compose 配置管理一个实例，备用机可以使用独立身份部署 Root-only，也可以按[Controller-only 手动备用指南](docs/controller-standby.md)准备同一 Controller 的人工接管副本。默认从当前源码构建，不依赖第三方维护者发布的 `latest` 镜像。已有部署请先阅读[原地升级指南](docs/in-place-upgrade.md)，不要按首次安装步骤初始化旧数据。
+**用一台低成本云主机，搭建属于自己的 ZeroTier 内网穿透入口。**
 
-项目以生产可维护性为核心，独立发布，不使用 GitHub Fork 关系。第三方组件、历史代码归属和许可证边界见 [NOTICE.md](NOTICE.md)。
+`ms-zerotier-planet` 把 ZeroTier Planet、Root、Controller 和 Web 管理控制台打包在一起：你的笔记本、手机、家用 NAS、开发机和云服务器可以加入同一张私有虚拟网络，安全访问 SSH、RDP、HTTP、数据库等内网服务。它使用标准 ZeroTier 客户端，不要求改造业务，也不依赖第三方公共 Planet。
+
+如果你手上只有阿里云等厂商的 **2 vCPU / 2 GiB** 级别云主机，这也是一个实际可落地的起点：个人和小团队的低至中等流量场景可以在一台主机上同时运行 Controller、Root 和 Web 控制台。真实吞吐和延迟仍取决于带宽、地域、NAT、客户端数量与业务流量；需要更高可用性时，可以再增加独立 Root。
+
+```text
+你的设备/内网服务  ── ZeroTier 虚拟网络 ──  自建 Planet + Root
+                                           └─ Controller + Web 控制台
+```
+
+## 为什么选择它
+
+- **真正掌控入口**：Planet、identity、Network、授权和虚拟 IP 都在自己的服务器上，客户端配置由你签发和分发。
+- **一台小规格云主机即可开始**：默认单 Root 部署，安装脚本负责配置、构建、启动和健康检查。
+- **不用改业务**：接入端继续使用官方 ZeroTier 客户端，现有 SSH、Web、文件共享和数据库服务按原方式运行。
+- **可视化管理**：在 Web 中创建网络、授权成员、调整 MTU，下载 `planet`/`.moon` 并核对 SHA-256。
+- **需要时再扩容**：同一 Planet 支持多 Root 和备用 Root；签名发布、身份隔离和切换准备度都有配套工具与文档。
+- **迁移有边界**：支持核对数据布局、身份和签名链后的原地升级；不偷偷覆盖旧数据，也不把单活 Controller 包装成“自动高可用”。
+
+## 快速启动
+
+准备一台带固定公网 IPv4 的 Linux 主机，放行 `9994/udp`，安装 Docker Engine 24+ 与 Compose v2：
+
+```bash
+git clone https://github.com/Csneer/ms-zerotier-planet.git
+cd ms-zerotier-planet
+./install.sh --ip YOUR_PUBLIC_IPV4
+```
+
+安装完成后访问 `http://127.0.0.1:3443`，默认登录 `admin/password`，首次登录立即修改密码。然后：
+
+1. 在 `Networks` 创建虚拟网络。
+2. 在 `Downloads` 下载 `planet`，把它安装到每台客户端的 ZeroTier 数据目录。
+3. 启动客户端、加入网络，并在 Web 控制台授权成员。
+4. 用设备的 ZeroTier 地址访问你的 SSH、Web 或其他内网服务。
+
+默认安装从当前 checkout 构建镜像；如果你更关心拉取速度，也可以使用自己发布到 GHCR 的镜像：
+
+```bash
+./install.sh --ip YOUR_PUBLIC_IPV4 --pull \
+  --image ghcr.io/csneer/ms-zerotier-planet:v1.0.0
+```
+
+需要由编码 Agent 或自动化流程执行安装、升级和验收时，请按 [Agent 安装与验收指引](docs/agent-install.md) 操作。
+
+> 这是私有虚拟网络方案，不是只转发 HTTP 的临时隧道。它适合需要访问多种 TCP/UDP 内网服务的场景；公网地址、云安全组和主机防火墙仍由你自己负责。
 
 ## 二开维护内容
 
