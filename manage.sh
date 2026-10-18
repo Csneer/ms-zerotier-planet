@@ -234,6 +234,13 @@ backup_root() {
     printf '%s' "$(realpath -m -- "$root")"
 }
 
+backup_discard() {
+    local path=${1:-}
+    if [[ -n "$path" && -e "$path" ]] && ! rm -rf -- "$path"; then
+        warn "could not remove incomplete backup; inspect it before reuse: $path"
+    fi
+}
+
 backup_data() {
     local online=${1:-0} resume=${2:-1} recovery=${3:-0}
     local name was_running=0 stamp destination label source
@@ -268,6 +275,7 @@ backup_data() {
             continue
         fi
         if [[ -z "$source" || ! -d "$source" ]]; then
+            backup_discard "$destination"
             if ((was_running && online == 0 && resume)); then
                 docker compose start "$SERVICE" || true
             fi
@@ -275,6 +283,7 @@ backup_data() {
         fi
         install -d -m 0700 "$destination/$label"
         if ! cp -a --reflink=auto "$source/." "$destination/$label/"; then
+            backup_discard "$destination"
             if ((was_running && online == 0 && resume)); then
                 docker compose start "$SERVICE" || true
             fi
@@ -298,13 +307,20 @@ backup_data() {
         link=$(find "$destination/$label" -type l -print -quit)
         if [[ -n "$link" ]]; then
             link_target=$(readlink -- "$link" 2>/dev/null || printf '<unreadable>')
+            backup_discard "$destination"
             die "unsupported symbolic link in backup source: ${link#"$destination/"} -> $link_target"
         fi
     done
 
-    cp -p .env docker-compose.yml "$destination/"
+    if ! cp -p .env docker-compose.yml "$destination/"; then
+        backup_discard "$destination"
+        die 'failed to copy configuration into backup'
+    fi
     if container_exists; then
-        docker inspect "$name" >"$destination/container-inspect.json"
+        if ! docker inspect "$name" >"$destination/container-inspect.json"; then
+            backup_discard "$destination"
+            die 'failed to record container metadata in backup'
+        fi
     fi
     {
         printf 'backup_format=2\n'
@@ -326,13 +342,16 @@ backup_data() {
         printf 'image=%s\n' "$(image_name)"
         printf 'container=%s\n' "$name"
     } >"$destination/manifest.env"
-    (
+    if ! (
         cd "$destination"
         sums=$(mktemp .SHA256SUMS.tmp.XXXXXXXX)
         find . -type f ! -path ./SHA256SUMS ! -path "./$sums" -print0 | sort -z | xargs -0 sha256sum >"$sums"
         mv -- "$sums" SHA256SUMS
         sha256sum -c SHA256SUMS >/dev/null
-    )
+    ); then
+        backup_discard "$destination"
+        die 'failed to verify backup manifest'
+    fi
     find "$destination" -type d -exec chmod 0700 {} +
     find "$destination" -type f -exec chmod 0600 {} +
     LAST_BACKUP=$destination
