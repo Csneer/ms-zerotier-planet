@@ -42,7 +42,7 @@ try {
   fs.mkdirSync(path.join(temp, 'bin'));
   fs.writeFileSync(path.join(temp, 'bin/docker'), `#!/bin/bash
 set -eu
-if [[ "$*" == info ]]; then exit 0; fi
+if [[ "$*" == info ]]; then [[ "\${ZT_INSTALL_TEST_OFFLINE:-0}" != 1 ]]; exit $?; fi
 if [[ "$1" == compose && ( "$2" == config || "$2" == version ) ]]; then
   exec "$ZT_INSTALL_TEST_DOCKER" "$@"
 fi
@@ -83,12 +83,20 @@ exit 99
   ok(run(generated, 'install.sh', ['--ip', '198.51.100.22', '--data-dir', generated.data, '--configure-only']));
   assert.match(fs.readFileSync(generated.envFile, 'utf8'), /^PLANET_MODE=generated$/m);
   ok(run(generated, 'manage.sh', ['doctor']));
+  const retry = fixture('failed-first-install');
+  const failedInstall = run(retry, 'install.sh', ['--ip', '198.51.100.24', '--data-dir', retry.data], {ZT_INSTALL_TEST_OFFLINE: '1'});
+  fails(failedInstall, /cannot connect to the Docker daemon/);
+  assert.match(failedInstall.stderr, /Configuration was kept/);
+  assert.match(failedInstall.stderr, /without initialization flags/);
+  const retainedEnv = fs.readFileSync(retry.envFile, 'utf8');
+  ok(run(retry, 'install.sh', ['--configure-only']));
+  assert.equal(fs.readFileSync(retry.envFile, 'utf8'), retainedEnv);
   for (const [flag, value, pattern] of [['--planet-mode', 'unknown', /PLANET_MODE/], ['--root-only', '2', /ROOT_ONLY/]]) {
     const invalid = fixture(flag.slice(2));
     fails(run(invalid, 'install.sh', ['--ip', '198.51.100.23', '--data-dir', invalid.data, flag, value, '--configure-only']), pattern);
     assert.ok(!fs.existsSync(invalid.envFile));
   }
-  console.log('PASS: CLI/environment modes persist, existing .env is protected, generated defaults remain compatible');
+  console.log('PASS: CLI/environment modes persist, failed installs retain configuration with retry instructions, generated defaults remain compatible');
 } finally {
   fs.rmSync(temp, {recursive: true, force: true});
 }

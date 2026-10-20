@@ -26,6 +26,9 @@ const messages = {
   'common.delete': ['删除', 'Delete'],
   'common.actions': ['操作', 'Actions'],
   'common.refresh': ['刷新', 'Refresh'],
+  'common.saving': ['保存中…', 'Saving…'],
+  'common.saved': ['已保存', 'Saved'],
+  'common.save_failed': ['保存失败，请重试', 'Save failed. Try again.'],
   'common.enabled': ['已启用', 'Enabled'],
   'common.disabled': ['未启用', 'Disabled'],
   'common.none': ['无', 'None'],
@@ -47,10 +50,16 @@ const messages = {
   'dashboard.node_address': ['节点地址', 'Node address'],
   'dashboard.zt_version': ['ZeroTier 版本', 'ZeroTier version'],
   'dashboard.tcp_fallback': ['TCP 回退', 'TCP fallback'],
+  'dashboard.network_count': ['托管网络', 'Managed networks'],
+  'dashboard.member_count': ['托管成员', 'Managed members'],
+  'dashboard.runtime_version': ['运行版本', 'Runtime version'],
+  'dashboard.reachability_scope': ['本机可观测路径', 'Observed from this instance'],
+  'dashboard.tcp_fallback_desc': ['备用传输状态', 'Fallback transport status'],
   'dashboard.active': ['已启用', 'Active'],
   'dashboard.inactive': ['未启用', 'Not active'],
   'dashboard.quick_actions': ['快捷操作', 'Quick actions'],
   'dashboard.quick_heading': ['常用功能，一步直达', 'Everything important, one click away'],
+  'dashboard.management': ['管理入口', 'Administration'],
   'dashboard.networks_description': ['查看成员、路由、地址池和 MTU 设置。', 'View members, routes, address pools, and MTU settings.'],
   'dashboard.open_networks': ['打开网络 →', 'Open networks →'],
   'dashboard.new_network_description': ['使用优化后的默认 1280 MTU 创建私有网络。', 'Create a private network with the optimized 1280 MTU default.'],
@@ -140,7 +149,8 @@ const messages = {
   'network.cidr': ['网络地址（CIDR）', 'Network address (CIDR)'],
   'network.pool_start': ['地址池起始 IP', 'Pool start address'],
   'network.pool_end': ['地址池结束 IP', 'Pool end address'],
-  'network.invalid_cidr': ['无效的网络 CIDR', 'Invalid network CIDR'],
+  'network.invalid_pool': ['地址池须位于网段的可用主机范围内，且起始地址不能大于结束地址', 'The pool must contain usable addresses in this network, with its start at or before its end'],
+  'network.invalid_cidr': ['请输入有效的 IPv4 网段，前缀须为 1–30 的整数', 'Enter a valid IPv4 network with a whole-number prefix from 1 to 30'],
   'network.setup_success': ['网络配置成功', 'Network setup succeeded'],
   'routes.title': ['托管路由', 'Managed routes'],
   'routes.description': ['配置网络成员可访问的网段；直连 ZeroTier 网段可将网关留空。', 'Configure subnets reachable by members; leave the gateway blank for the directly attached ZeroTier subnet.'],
@@ -460,7 +470,8 @@ module.exports = function uiLanguage(req, res, next) {
   res.locals.lang = language;
   res.locals.t = translate;
   res.locals.localize_error = localizeError;
-  res.locals.language_url = target => `${req.path}?lang=${normalizeLanguage(target) || DEFAULT_LANGUAGE}`;
+  const pagePath = (req.originalUrl || (req.baseUrl || '') + req.path).split('?')[0];
+  res.locals.language_url = target => `${pagePath}?lang=${normalizeLanguage(target) || DEFAULT_LANGUAGE}`;
   next();
 };
 

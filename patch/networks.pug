@@ -6,9 +6,13 @@ block content
       span.eyebrow= t('networks.eyebrow')
       h1= t('networks.title')
       p= t('networks.description')
-    a.btn.btn-primary.btn-lg(href='/controller/network/create')
-      span.glyphicon.glyphicon-plus(aria-hidden='true')
-      |  #{t('nav.new_network')}
+    .page-heading-actions
+      span.page-count-badge
+        span.glyphicon.glyphicon-th-large(aria-hidden='true')
+        |  #{networks.length}
+      a.btn.btn-primary.btn-lg(href='/controller/network/create')
+        span.glyphicon.glyphicon-plus(aria-hidden='true')
+        |  #{t('nav.new_network')}
 
   if error
     .alert.alert-danger= error
@@ -19,7 +23,12 @@ block content
       p= t('networks.empty_description')
       a.btn.btn-primary(href='/controller/network/create')= t('network.create_button')
   else
-    .surface-card.table-card
+    .surface-card.table-card.network-list-card
+      .list-toolbar
+        div
+          strong= t('networks.title')
+          small= t('networks.description')
+        span.list-toolbar-hint= t('common.actions')
       .table-responsive
         table.table.app-table
           thead
@@ -30,7 +39,7 @@ block content
           tbody
             each network in networks
               - const nwurl = '/controller/network/' + network.nwid;
-              tr
+              tr.network-row
                 td
                   a.network-name(href=nwurl)
                     span.network-avatar= (network.name || 'N').charAt(0).toUpperCase()
@@ -40,8 +49,13 @@ block content
                 td
                   code.network-id= network.nwid
                 td.text-right.table-actions
-                  a.btn.btn-default.btn-sm(href=nwurl + '#members')= t('networks.members')
-                  a.btn.btn-default.btn-sm(href=nwurl + '/easy')= t('networks.easy_setup')
-                  a.btn.btn-primary.btn-sm(href=nwurl)= t('networks.configure')
-                  a.btn.btn-link.btn-sm.danger-link(href=nwurl + '/delete' title=t('networks.delete_title'))
-                    span.glyphicon.glyphicon-trash
+                  .network-actions
+                    a.btn.btn-default.btn-sm(href=nwurl + '#members')= t('networks.members')
+                    a.btn.btn-default.btn-sm(href=nwurl + '/easy')= t('networks.easy_setup')
+                    a.btn.btn-primary.btn-sm(href=nwurl)= t('networks.configure')
+                    a.btn.btn-link.btn-sm.danger-link(
+                      href=nwurl + '/delete'
+                      title=t('networks.delete_title')
+                      aria-label=t('networks.delete_title')
+                    )
+                      span.glyphicon.glyphicon-trash(aria-hidden='true')

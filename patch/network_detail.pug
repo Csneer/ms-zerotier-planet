@@ -6,31 +6,51 @@ block network_title
       span#name= network.name || t('network.network')
       span.glyphicon.glyphicon-pencil(aria-hidden='true')
     input#name-input.form-control(type='text' aria-label=t('network.name'))
+  p#name-error.text-danger(role='alert' hidden)= t('common.save_failed')
   code.page-network-id= network.nwid
   script.
     $(function() {
       var nwurl = '/controller/network/#{network.nwid}';
       var name = !{JSON.stringify(network.name || '').replace(/</g, '\\u003c')};
 
+      var editing = false;
+      var saving = false;
+
       function toggleNameEditor(show) {
+        editing = show;
         $('#change-name').toggle(!show);
         $('#name-input').toggle(show);
       }
 
       function submitName() {
+        if (!editing || saving) return;
         var newName = $('#name-input').val().trim();
-        if (newName && newName !== name) {
-          $.post(nwurl + '/name', {name: newName})
-            .done(function() {
-              name = newName;
-              $('#name').text(newName);
-            });
+        if (!newName || newName === name) {
+          toggleNameEditor(false);
+          return;
         }
-        toggleNameEditor(false);
+        saving = true;
+        $('#name-input').prop('disabled', true);
+        $('#name-error').prop('hidden', true);
+        $.post(nwurl + '/name', {name: newName})
+          .done(function() {
+            name = newName;
+            $('#name').text(newName);
+            toggleNameEditor(false);
+          })
+          .fail(function() {
+            $('#name-error').text(!{JSON.stringify(t('common.save_failed'))}).prop('hidden', false);
+          })
+          .always(function() {
+            saving = false;
+            $('#name-input').prop('disabled', false);
+            if (editing) $('#name-input').focus();
+          });
       }
 
       $('#change-name').on('click', function(event) {
         event.preventDefault();
+        $('#name-error').prop('hidden', true);
         toggleNameEditor(true);
         $('#name-input').val(name).focus().select();
       });
@@ -38,8 +58,13 @@ block network_title
         if (event.key === 'Enter') {
           event.preventDefault();
           submitName();
-        } else if (event.key === 'Escape') {
+        } else if (event.key === 'Escape' && !saving) {
+          event.preventDefault();
+          editing = false;
+          $('#name-input').val(name);
+          $('#name-error').prop('hidden', true);
           toggleNameEditor(false);
+          $('#change-name').focus();
         }
       });
     });
@@ -147,9 +172,11 @@ block net_content
       div
         h2 #{t('network.members_heading')} (#{memberList.length})
         p= t('network.members_hint')
-      a.btn.btn-default.btn-sm(href='')
-        span.glyphicon.glyphicon-refresh(aria-hidden='true')
-        |  #{t('common.refresh')}
+      .member-header-actions
+        span#members-save-status.inline-save-status(aria-live='polite' data-saving=t('common.saving') data-saved=t('common.saved') data-failed=t('common.save_failed'))
+        a.btn.btn-default.btn-sm(href='')
+          span.glyphicon.glyphicon-refresh(aria-hidden='true')
+          |  #{t('common.refresh')}
 
     .member-scope-note
       span.glyphicon.glyphicon-info-sign(aria-hidden='true')
@@ -162,17 +189,60 @@ block net_content
     script.
       $(function() {
         var url = '#{nwurl}/members';
+        var saveStatus = $('#members-save-status');
+        var pendingSaves = 0;
+        var failedFields = new Set();
+        function setSaveStatus(state) {
+          var message = saveStatus.attr('data-' + state) || '';
+          saveStatus.text(message)
+            .toggleClass('is-visible', Boolean(message))
+            .toggleClass('is-saved', state === 'saved')
+            .toggleClass('is-error', state === 'failed');
+        }
+        function updateSaveStatus() {
+          setSaveStatus(failedFields.size ? 'failed' : pendingSaves ? 'saving' : 'saved');
+        }
+        function beginSave(field) {
+          pendingSaves += 1;
+          updateSaveStatus();
+          return field;
+        }
+        function finishSave(field, state) {
+          pendingSaves -= 1;
+          if (state === 'failed') failedFields.add(field);
+          else failedFields.delete(field);
+          $(field).attr('aria-invalid', state === 'failed' ? 'true' : 'false');
+          updateSaveStatus();
+        }
         $('.authCheck, .bridgeCheck').on('change', function() {
           var checkbox = this;
+          if (checkbox.disabled) return;
           var payload = {id: checkbox.value};
           payload[$(checkbox).hasClass('authCheck') ? 'auth' : 'activeBridge'] = checkbox.checked;
+          var sequence = beginSave(checkbox);
           $(checkbox).prop('disabled', true);
           $.post(url, payload)
-            .fail(function() { checkbox.checked = !checkbox.checked; })
+            .done(function() { finishSave(sequence, 'saved'); })
+            .fail(function() { checkbox.checked = !checkbox.checked; finishSave(sequence, 'failed'); })
             .always(function() { $(checkbox).prop('disabled', false); });
         });
         $('.member-name-input').on('change', function() {
-          $.post(url, {id: this.name, name: this.value});
+          var input = this;
+          if (input.disabled) return;
+          var submittedValue = input.value;
+          var previousValue = input.defaultValue;
+          var sequence = beginSave(input);
+          $(input).prop('disabled', true);
+          $.post(url, {id: input.name, name: submittedValue})
+            .done(function() {
+              input.defaultValue = submittedValue;
+              finishSave(sequence, 'saved');
+            })
+            .fail(function() {
+              if (input.value === submittedValue) input.value = previousValue;
+              finishSave(sequence, 'failed');
+            })
+            .always(function() { $(input).prop('disabled', false); });
         });
       });
 

@@ -26,13 +26,13 @@ block content
     .monitor-summary-grid
       .stat-card.monitor-stat
         .stat-icon
-          span.glyphicon.glyphicon-hdd
+          span.glyphicon.glyphicon-hdd(aria-hidden='true')
         .stat-content
           span.stat-label= t('monitor.private_root')
           strong(class=monitor.service.planetMatches && monitor.service.unexpectedPlanetCount === 0 ? 'text-success' : 'text-danger')= monitor.service.planetMatches && monitor.service.unexpectedPlanetCount === 0 ? t('monitor.healthy') : t('monitor.abnormal')
       .stat-card.monitor-stat
         .stat-icon
-          span.glyphicon.glyphicon-signal
+          span.glyphicon.glyphicon-signal(aria-hidden='true')
         .stat-content
           span.stat-label= t('monitor.planet_reachable')
           strong #{monitor.summary.planetReachableCount} / #{monitor.summary.planetObservedCount}
@@ -40,21 +40,42 @@ block content
             small.monitor-path-meta #{monitor.summary.planetUnknownCount} #{t('monitor.communication_unknown_short')}
       .stat-card.monitor-stat
         .stat-icon
-          span.glyphicon.glyphicon-resize-small
+          span.glyphicon.glyphicon-resize-small(aria-hidden='true')
         .stat-content
           span.stat-label= t('monitor.probe_direct')
           strong= monitor.probe.available ? monitor.summary.probeDirectCount : '—'
       .stat-card.monitor-stat
         .stat-icon
-          span.glyphicon.glyphicon-random
+          span.glyphicon.glyphicon-random(aria-hidden='true')
         .stat-content
           span.stat-label= t('monitor.probe_relay')
           strong= monitor.probe.available ? monitor.summary.probeRelayCount : '—'
 
+    nav.monitor-section-nav(aria-label=t('monitor.title'))
+      a(href='#root-topology')
+        span.glyphicon.glyphicon-share-alt(aria-hidden='true')
+        |  #{t('monitor.root_topology')}
+      if monitor.communication
+        a(href='#network-health')
+          span.glyphicon.glyphicon-globe(aria-hidden='true')
+          |  #{t('monitor.network_health')}
+      a(href='#endpoint-probes')
+        span.glyphicon.glyphicon-transfer(aria-hidden='true')
+        |  #{t('monitor.endpoint_probes')}
+      a(href='#service-status')
+        span.glyphicon.glyphicon-tasks(aria-hidden='true')
+        |  #{t('monitor.service_status')}
+      a(href='#service-traffic')
+        span.glyphicon.glyphicon-dashboard(aria-hidden='true')
+        |  #{t('monitor.traffic')}
+      a(href='#member-paths')
+        span.glyphicon.glyphicon-user(aria-hidden='true')
+        |  #{t('monitor.member_paths')}
+
     +roots_panel(topology, uiListeners)
 
     if monitor.communication
-      section.surface-card.table-card.monitor-network-card
+      section#network-health.surface-card.table-card.monitor-network-card
         .card-heading.card-heading-padded
           div
             h2= t('monitor.network_health')
@@ -124,7 +145,7 @@ block content
                   td.empty-table-cell(colspan='5')= t('monitor.no_networks')
         p.monitor-footnote= t('monitor.communication_scope_note')
 
-    section.surface-card.table-card.monitor-network-card
+    section#endpoint-probes.surface-card.table-card.monitor-network-card
       .card-heading.card-heading-padded
         div
           h2= t('monitor.endpoint_probes')
@@ -183,7 +204,7 @@ block content
 
     .row.monitor-card-row
       .col-md-6
-        section.surface-card.monitor-card
+        section#service-status.surface-card.monitor-card
           .card-heading
             div
               h2= t('monitor.service_status')
@@ -208,7 +229,7 @@ block content
               span= t('monitor.ui_uptime')
               strong= formatAge(monitor.service.uptimeSeconds * 1000)
       .col-md-6
-        section.surface-card.monitor-card
+        section#service-traffic.surface-card.monitor-card
           .card-heading
             div
               h2= t('monitor.traffic')
@@ -238,7 +259,7 @@ block content
           else
             .alert.alert-info= t('monitor.metrics_waiting')
 
-    section.surface-card.table-card.monitor-member-card
+    section#member-paths.surface-card.table-card.monitor-member-card
       .card-heading.card-heading-padded
         div
           h2= t('monitor.member_paths')
@@ -311,6 +332,18 @@ block content
     p.monitor-footnote= t('monitor.relay_limit_note')
 
     script.
-      setTimeout(function() {
-        if (!document.hidden) window.location.reload();
-      }, 10000);
+      (function() {
+        var refreshTimer;
+        var refreshDelay = 10000;
+        function scheduleRefresh() {
+          window.clearTimeout(refreshTimer);
+          refreshTimer = window.setTimeout(function() {
+            if (document.hidden) return;
+            window.location.reload();
+          }, refreshDelay);
+        }
+        document.addEventListener('visibilitychange', function() {
+          if (!document.hidden) scheduleRefresh();
+        });
+        scheduleRefresh();
+      }());

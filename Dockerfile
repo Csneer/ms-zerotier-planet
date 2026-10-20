@@ -52,6 +52,9 @@ RUN cd /opt/ztncui \
     && npm install --package-lock-only --ignore-scripts \
     && npm ci --omit=dev \
     && npm cache clean --force
+COPY patch/ztncui-network-validation.patch /tmp/ztncui-network-validation.patch
+RUN cd /opt/ztncui && patch -l -p1 < /tmp/ztncui-network-validation.patch
+COPY patch/networkValidation.js /opt/ztncui/src/public/javascripts/networkValidation.js
 COPY patch/ztncui-roots.patch /tmp/ztncui-roots.patch
 RUN cd /opt/ztncui && patch -l -p1 < /tmp/ztncui-roots.patch
 COPY patch/downloadsController.js /opt/ztncui/src/controllers/downloadsController.js

@@ -2,11 +2,73 @@
 
 [中文](README.md)
 
-This self-hosted ZeroTier project supports **multi-Root failover within one Planet and in-place upgrades**, with an embedded Controller and shared Web console. Failover means clients can recover relayed connectivity through another Root; it is not a promise of seamless, second-level recovery or uninterrupted TCP sessions. The Controller stays single-active. Existing Network IDs, authorization and virtual IPs can be retained after validating the old layout, identities and signing chain.
+[![CI](https://github.com/Csneer/ms-zerotier-planet/actions/workflows/image-build.yml/badge.svg)](https://github.com/Csneer/ms-zerotier-planet/actions/workflows/image-build.yml)
+[![Latest release](https://img.shields.io/github/v/release/Csneer/ms-zerotier-planet?display_name=tag)](https://github.com/Csneer/ms-zerotier-planet/releases)
 
-Each Compose configuration manages one instance; backup hosts may run Root-only services with independent identities or follow the [Controller-only manual standby guide](docs/controller-standby.md) for a guarded copy of the same Controller. The project builds from the checked-out source by default without relying on a third-party `latest` image. Existing operators should start with the [in-place upgrade guide](docs/in-place-upgrade.md), not initialize old data as a fresh installation.
+**Run your own ZeroTier private network and reach your home or office services from anywhere.**
 
-The project is published as a standalone repository rather than a GitHub Fork, with production maintainability as its primary goal. See [NOTICE.md](NOTICE.md) for third-party components, historical attribution, and licensing boundaries.
+`ms-zerotier-planet` bundles a private ZeroTier Planet, Root, Controller, and Web console. Put laptops, NAS boxes, development machines, and cloud servers on one private virtual network, then reach SSH, RDP, HTTP, databases, and other internal services without changing the applications themselves or depending on a third-party public Planet. Clients must support replacing the Planet file; see the client compatibility table below.
+
+A small **2 vCPU / 2 GiB** cloud VM (including common Aliyun instances) is a practical starting point for personal and small-team, low-to-moderate traffic. The real limit depends on bandwidth, region, NAT, client count, and traffic patterns. Add an independent Root when you need more resilience.
+
+```text
+your devices and private services ── ZeroTier network ── your Planet + Root
+                                                        └─ Controller + Web console
+```
+
+## Why this project
+
+- **Own the control plane**: Planet, identities, networks, authorizations, and virtual IPs stay on infrastructure you control.
+- **Start on a small VM**: the default single-Root setup configures, builds, starts, and health-checks the service for you.
+- **No application changes**: use the standard ZeroTier clients and keep existing SSH, Web, file-sharing, and database services.
+- **Manage from a browser**: create networks, authorize members, adjust MTU, and download signed `planet`/`.moon` files with SHA-256.
+- **Grow into redundancy**: one Planet can publish multiple Roots and isolated backup Roots with documented signing and readiness checks.
+- **Predictable operations**: upgrades preserve data only after identity and signing-chain checks; a single-active Controller is not presented as automatic HA.
+
+## Quick start
+
+Use a Linux host with a stable public IPv4 address, allow `9994/udp`, and install Docker Engine 24+, Compose v2, Bash, Git, Python 3, `jq`, and GNU coreutils (including `realpath`). The commands require Docker access and write permission to the data directory. Keep the source checkout separate from runtime data:
+
+```bash
+git clone https://github.com/Csneer/ms-zerotier-planet.git
+cd ms-zerotier-planet
+./install.sh --ip YOUR_PUBLIC_IPV4 --data-dir /srv/zerotier-planet
+```
+
+The Web console listens on the cloud server's loopback address by default. From your own computer, keep an SSH tunnel open:
+
+```bash
+ssh -N -L 3443:127.0.0.1:3443 user@server
+```
+
+Then open `http://127.0.0.1:3443` in your local browser, sign in with `admin/password`, and change the password immediately. After reviewing firewall and access controls, you can instead set `HTTP_HOST` or `HTTP_EXTRA_HOSTS` to the server's ZeroTier address.
+
+Then:
+
+1. Create a network in `Networks`.
+2. Download `planet` from `Downloads` and install it in each client's ZeroTier data directory.
+3. Start the client, join the network, and authorize the member in the Web console.
+4. Use its ZeroTier address to reach SSH, Web, or other private services.
+
+The default install builds from the checked-out source. If you publish an image to GHCR, you can pull a versioned image instead:
+
+```bash
+./install.sh --ip YOUR_PUBLIC_IPV4 --pull \
+  --image ghcr.io/csneer/ms-zerotier-planet:v1.1.0 \
+  --data-dir /srv/zerotier-planet
+```
+
+Source builds contact Debian, ZeroTier, and GitHub upstreams. Keep the default `DEBIAN_MIRROR=mirrors.aliyun.com` for suitable mainland China hosts; use `DEBIAN_MIRROR=default` elsewhere when the Aliyun mirror is unavailable:
+
+```bash
+DEBIAN_MIRROR=default ./install.sh --ip YOUR_PUBLIC_IPV4 --data-dir /srv/zerotier-planet
+```
+
+If dependency checks, an image pull, or a source build fails, the installer keeps `.env` and any created data directories. After fixing the cause, do not repeat initialization flags: run `./manage.sh doctor`, then `./manage.sh up`. Edit `.env` only after a deliberate backup and review.
+
+For non-interactive installation, upgrades, and acceptance checks by a coding agent, follow the [Agent installation and acceptance guide](docs/agent-install.md).
+
+> This is a private virtual network for multiple TCP/UDP services, not a temporary HTTP-only tunnel. You still manage the public address, cloud security group, and host firewall.
 
 ## Maintained derivative scope
 
@@ -24,6 +86,7 @@ The project is published as a standalone repository rather than a GitHub Fork, w
 - Dashboard and monitor share Controller / World / Root topology, distinguish recent responses from stale paths or unavailable probes, and serve one UI on loopback plus explicit ZeroTier addresses.
 - Explicit, non-destructive install, upgrade, backup, restore, password-reset, and uninstall commands.
 - GitHub Actions publish multi-architecture images to this repository's GHCR package.
+- The [small-VM benchmark](docs/capacity-benchmark.md) records the 2 vCPU / 2 GiB baseline; idle resource use is not a relay throughput or member-count guarantee.
 
 ## Requirements
 
@@ -50,7 +113,7 @@ Build from your checkout (replace `203.0.113.10` with the server's real public I
 ```bash
 git clone https://github.com/Csneer/ms-zerotier-planet.git
 cd ms-zerotier-planet
-./install.sh --ip 203.0.113.10
+./install.sh --ip 203.0.113.10 --data-dir /srv/zerotier-planet
 ```
 
 Optional arguments:
@@ -89,7 +152,7 @@ Generate B's independent identity and give only `identity.public` to the signer;
 Create and validate `.env` without starting Docker:
 
 ```bash
-./install.sh --ip 203.0.113.10 --configure-only
+./install.sh --ip 203.0.113.10 --data-dir /srv/zerotier-planet --configure-only
 ```
 
 Use an image published by your repository:
@@ -241,13 +304,21 @@ Common paths:
 - Windows: `C:\ProgramData\ZeroTier\One\planet`
 - macOS: `/Library/Application Support/ZeroTier/One/planet`
 
+| Platform | Validation available | Requirements |
+| --- | --- | --- |
+| Linux | Container startup, signed updates, and isolated network regression | Permission to stop the service and replace Planet; verify end-to-end access in your deployment |
+| Windows / macOS | Common paths documented; no real-device regression in this round | Administrator access to replace Planet, then verify network membership and service access |
+| Android / iOS | Private Planet onboarding unverified | Import support and permissions depend on client version and device policy; joining a Network ID alone does not establish private Planet access |
+
+Validate mobile Planet import, network membership, and end-to-end access on a test device with a recovery path before relying on it.
+
 ## Versions and image publishing
 
-Project releases use independent SemVer tags (`vX.Y.Z`), starting with `v1.0.0` and image `ghcr.io/csneer/ms-zerotier-planet:v1.0.0`. These are distinct from runtime versions such as ZeroTier `1.16.2`. See the [changelog](CHANGELOG.md) and [release procedure (Chinese)](docs/releasing.md) for repository identity setup, tagging, and GitHub Releases.
+Project releases use independent SemVer tags (`vX.Y.Z`). The current release is `v1.1.0`, with image `ghcr.io/csneer/ms-zerotier-planet:v1.1.0`. These are distinct from runtime versions such as ZeroTier `1.16.2`. See the [changelog](CHANGELOG.md) and [release procedure (Chinese)](docs/releasing.md) for repository identity setup, tagging, and GitHub Releases.
 
 The [image workflow](.github/workflows/image-build.yml) validates scripts, Compose, and container regressions before building `linux/amd64` and `linux/arm64` images:
 
-- A release tag `vX.Y.Z` selects `ZT_VERSION` from that tag's `.env.example` (`1.16.2` for `v1.0.0`) and publishes only the project version image, leaving rolling tags unchanged.
+- A release tag `vX.Y.Z` selects `ZT_VERSION` from that tag's `.env.example` (`1.16.2` for `v1.1.0`) and publishes only the project version image, leaving rolling tags unchanged.
 - Pushes to `main`/`master`, weekly builds, and ordinary manual builds continue to track the latest stable ZeroTier release (or a manually specified version), publishing `latest`, ZeroTier version, and Git SHA tags.
 - Record and deploy the image digest when exact image contents must remain fixed. A version tag does not mean every build dependency is locked.
 
