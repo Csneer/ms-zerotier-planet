@@ -54,7 +54,7 @@ The default install builds from the checked-out source. If you publish an image 
 
 ```bash
 ./install.sh --ip YOUR_PUBLIC_IPV4 --pull \
-  --image ghcr.io/csneer/ms-zerotier-planet:v1.0.0 \
+  --image ghcr.io/csneer/ms-zerotier-planet:v1.1.0 \
   --data-dir /srv/zerotier-planet
 ```
 
@@ -314,11 +314,11 @@ Validate mobile Planet import, network membership, and end-to-end access on a te
 
 ## Versions and image publishing
 
-Project releases use independent SemVer tags (`vX.Y.Z`), starting with `v1.0.0` and image `ghcr.io/csneer/ms-zerotier-planet:v1.0.0`. These are distinct from runtime versions such as ZeroTier `1.16.2`. See the [changelog](CHANGELOG.md) and [release procedure (Chinese)](docs/releasing.md) for repository identity setup, tagging, and GitHub Releases.
+Project releases use independent SemVer tags (`vX.Y.Z`). The current release is `v1.1.0`, with image `ghcr.io/csneer/ms-zerotier-planet:v1.1.0`. These are distinct from runtime versions such as ZeroTier `1.16.2`. See the [changelog](CHANGELOG.md) and [release procedure (Chinese)](docs/releasing.md) for repository identity setup, tagging, and GitHub Releases.
 
 The [image workflow](.github/workflows/image-build.yml) validates scripts, Compose, and container regressions before building `linux/amd64` and `linux/arm64` images:
 
-- A release tag `vX.Y.Z` selects `ZT_VERSION` from that tag's `.env.example` (`1.16.2` for `v1.0.0`) and publishes only the project version image, leaving rolling tags unchanged.
+- A release tag `vX.Y.Z` selects `ZT_VERSION` from that tag's `.env.example` (`1.16.2` for `v1.1.0`) and publishes only the project version image, leaving rolling tags unchanged.
 - Pushes to `main`/`master`, weekly builds, and ordinary manual builds continue to track the latest stable ZeroTier release (or a manually specified version), publishing `latest`, ZeroTier version, and Git SHA tags.
 - Record and deploy the image digest when exact image contents must remain fixed. A version tag does not mean every build dependency is locked.
 

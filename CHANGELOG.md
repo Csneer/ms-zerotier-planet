@@ -2,10 +2,18 @@
 
 ## Unreleased
 
+## [1.1.0] - 2026-10-20
+
 ### Added
 
+- An agent installation and acceptance guide covering prerequisites, non-interactive setup, upgrades and client verification.
 - Disposable Chromium regressions for login, network creation, CIDR validation, rename and member persistence, language switching and mobile navigation, plus real Docker backup/recovery/rollback checks in CI.
 - A small-server resource baseline and a repeatable direct/relay capacity-testing guide; no fixed throughput or member-capacity claims.
+
+### Changed
+
+- Reshape the dashboard, network lists, downloads and monitoring pages with consistent components, clearer task entry points, keyboard focus and responsive layouts.
+- Refresh the Chinese and English project introductions around self-hosted networking on small cloud VMs, with SSH access to the loopback Web console and versioned image installation examples.
 
 ### Fixed
 
@@ -14,6 +22,11 @@
 - Network renaming handles Escape, duplicate blur/Enter events and failed saves correctly; member saves return explicit success/error responses and support clearing names.
 - Easy network setup validates integer IPv4 CIDR prefixes and usable address pools in both the browser and backend; language links retain the Controller route.
 - First-install failures explain how to retry using the retained configuration. Installation docs use a separate data directory, describe SSH access to the loopback Web listener and clarify client compatibility.
+
+### Security
+
+- Backups exclude only the three known image-provided ZeroTier tool symlinks and reject every other symbolic link, including TLS links. Incomplete backups are discarded instead of silently dropping user state.
+- Checksum manifest generation propagates every command failure, rejecting partial but otherwise valid checksum lists and resuming services stopped for the failed backup.
 
 ## [1.0.0] - 2026-10-16
 
@@ -72,4 +85,5 @@ First project release; earlier unversioned changes are collected here without in
 - Optional probe state is mounted read-only and its local API token is never exposed in the Web response.
 - Controller standby startup refuses missing/staged/fenced guards, stale Moon files, Root membership of a Controller-only identity and non-capability images.
 
+[1.1.0]: https://github.com/Csneer/ms-zerotier-planet/releases/tag/v1.1.0
 [1.0.0]: https://github.com/Csneer/ms-zerotier-planet/releases/tag/v1.0.0

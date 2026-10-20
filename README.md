@@ -54,7 +54,7 @@ ssh -N -L 3443:127.0.0.1:3443 user@server
 
 ```bash
 ./install.sh --ip YOUR_PUBLIC_IPV4 --pull \
-  --image ghcr.io/csneer/ms-zerotier-planet:v1.0.0 \
+  --image ghcr.io/csneer/ms-zerotier-planet:v1.1.0 \
   --data-dir /srv/zerotier-planet
 ```
 
@@ -354,11 +354,11 @@ git pull --ff-only
 
 ## 版本与镜像发布
 
-项目采用独立的 SemVer 版本（`vX.Y.Z`）；首个版本为 `v1.0.0`，对应镜像 `ghcr.io/csneer/ms-zerotier-planet:v1.0.0`。它与 ZeroTier `1.16.2` 等运行时版本不同。变更见 [CHANGELOG](CHANGELOG.md)，维护者的身份配置、打 tag 和 GitHub Release 步骤见[发布约定](docs/releasing.md)。
+项目采用独立的 SemVer 版本（`vX.Y.Z`）；当前版本为 `v1.1.0`，对应镜像 `ghcr.io/csneer/ms-zerotier-planet:v1.1.0`。它与 ZeroTier `1.16.2` 等运行时版本不同。变更见 [CHANGELOG](CHANGELOG.md)，维护者的身份配置、打 tag 和 GitHub Release 步骤见[发布约定](docs/releasing.md)。
 
 [image-build.yml](.github/workflows/image-build.yml) 校验脚本、Compose 和容器回归后，构建 `amd64`/`arm64` 并发布到 GHCR：
 
-- 正式 `vX.Y.Z` tag 使用该 tag 的 `.env.example` 中的 `ZT_VERSION`（`v1.0.0` 为 `1.16.2`），只发布对应项目版本镜像，不更新滚动标签。
+- 正式 `vX.Y.Z` tag 使用该 tag 的 `.env.example` 中的 `ZT_VERSION`（`v1.1.0` 为 `1.16.2`），只发布对应项目版本镜像，不更新滚动标签。
 - `main`/`master` 推送、每周计划任务和普通手动构建继续采用上游最新稳定 ZeroTier（手动构建可指定版本），生成 `latest`、ZeroTier 版本和 Git SHA 标签。
 - 需要固定实际部署内容时，记录并使用镜像 digest；版本 tag 本身不代表全部构建依赖均已锁定。
 

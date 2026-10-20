@@ -50,7 +50,7 @@ df -h .
 git clone https://github.com/Csneer/ms-zerotier-planet.git /opt/ms-zerotier-planet
 cd /opt/ms-zerotier-planet
 
-IMAGE_REF=ghcr.io/csneer/ms-zerotier-planet:v1.0.0
+IMAGE_REF=ghcr.io/csneer/ms-zerotier-planet:v1.1.0
 ./install.sh \
   --ip 203.0.113.10 \
   --data-dir /srv/zerotier-planet \
