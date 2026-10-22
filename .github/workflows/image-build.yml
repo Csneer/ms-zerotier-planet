@@ -176,7 +176,7 @@ jobs:
       - name: Verify ordinary backup, disaster recovery and rollback
         run: sudo "$(command -v node)" tests/manage-restore-docker.cjs zerotier-planet:ci-test
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: '22'
           cache: npm
