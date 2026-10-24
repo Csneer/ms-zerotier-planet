@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### Added
+
+- Read-only diagnostics for the known host Root drain policy, with optional minute-by-minute systemd collection and explicit missing, stale, restricted and single-path warnings in the dashboard and monitoring page.
+
+### Fixed
+
+- Root failover readiness now requires an observation from the service instance; an independent probe reaching a Root no longer hides an unreachable Controller upstream.
+
 ## [1.1.0] - 2026-10-20
 
 ### Added

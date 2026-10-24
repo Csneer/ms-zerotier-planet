@@ -63,6 +63,7 @@ COPY patch/ui-modern.css /opt/ztncui/src/public/stylesheets/ui-modern.css
 COPY patch/uiLanguage.js /opt/ztncui/src/uiLanguage.js
 COPY patch/uiStatus.js /opt/ztncui/src/uiStatus.js
 COPY patch/rootStatus.js /opt/ztncui/src/rootStatus.js
+COPY patch/hostDiagnostics.js /opt/ztncui/src/hostDiagnostics.js
 COPY patch/communicationStats.js /opt/ztncui/src/communicationStats.js
 COPY patch/endpointProbes.js /opt/ztncui/src/endpointProbes.js
 COPY patch/uiListen.js /opt/ztncui/src/uiListen.js

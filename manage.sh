@@ -81,6 +81,8 @@ Commands:
   up                             Start the service without replacing data.
   upgrade                        Build/pull, back up, recreate and health-check.
   status                         Show Compose, ZeroTier, World/Root and network status.
+  diagnose [--install-timer]      Read host Root policy into the Web diagnostics snapshot.
+                                 --install-timer refreshes it every minute (requires root).
   logs [docker compose args]     Follow service logs (default: --tail 200 -f).
   restart                        Restart and wait for a healthy service.
   backup [--online]              Create a checksummed backup. Default is offline
@@ -568,6 +570,23 @@ cmd_status() {
     fi
 }
 
+cmd_diagnose() {
+    local config_dir port
+    local -a options=()
+    (($# == 0)) || [[ $# == 1 && $1 == --install-timer ]] \
+        || die 'usage: ./manage.sh diagnose [--install-timer]'
+    require_command python3
+    load_config
+    config_dir=$(mount_source /app/config)
+    safe_directory "$config_dir" && [[ -d "$config_dir" ]] \
+        || die 'diagnostics requires an existing safe config bind mount'
+    port=$(config_value ".services.${SERVICE}.environment.ZT_PORT")
+    if (($#)); then options+=(--install-timer); fi
+    python3 "$ROOT_DIR/host-network-diagnostics.py" \
+        --output "$config_dir/host-network-diagnostics.json" --port "$port" "${options[@]}"
+    log 'Host policy snapshot refreshed; unavailable checks remain unknown in the Web UI'
+}
+
 cmd_logs() {
     load_config
     if (($#)); then
@@ -915,6 +934,7 @@ case "$command_name" in
     up) cmd_up "$@" ;;
     upgrade) cmd_upgrade "$@" ;;
     status) cmd_status "$@" ;;
+    diagnose) cmd_diagnose "$@" ;;
     logs) cmd_logs "$@" ;;
     restart) cmd_restart "$@" ;;
     backup) cmd_backup "$@" ;;
