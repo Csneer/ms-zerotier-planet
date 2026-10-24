@@ -46,7 +46,30 @@ mixin roots_panel(topology, listeners)
           - const listenerHost = listener.host.includes(':') ? '[' + listener.host + ']' : listener.host;
           code.monitor-listener(class=listener.state === 'listening' ? 'text-success' : 'text-danger') #{listenerHost}:#{listener.port}
           small= t('monitor.listener_' + listener.state)
+    - const host = topology.hostDiagnostics || {state: 'unknown', policy: null};
+    .alert.monitor-alert(class=host.state === 'absent' ? 'alert-info' : 'alert-warning')
+      strong= t('monitor.host_diagnostics')
+      p= t('monitor.host_state_' + host.state)
+      if host.collectedAt
+        small.monitor-path-meta= t('monitor.host_collected', {time: new Date(host.collectedAt).toISOString()})
+      if host.policy
+        p= t('monitor.host_policy_status', {active: t('monitor.host_' + (host.policy.active ? 'yes' : 'no')), enabled: t('monitor.host_' + (host.policy.serviceEnabled ? 'yes' : 'no'))})
+        if host.policy.allowedEndpoints && host.policy.allowedEndpoints.length
+          p= t('monitor.host_allowed')
+          each endpoint in host.policy.allowedEndpoints
+            code.monitor-path= endpoint
+        each root in host.allowedRoots
+          code.monitor-path #{root.id} · #{t(root.responding ? 'monitor.root_state_reachable' : 'monitor.root_state_unseen')}
+        if host.restartRisk
+          p.text-danger= t('monitor.host_restart_risk')
+      p= t('monitor.host_diagnose_help')
+      code.monitor-path ./manage.sh diagnose --install-timer
+      p.monitor-footnote= t('monitor.host_scope')
     if topology.available
+      if topology.warnings && topology.warnings.probeOnlyRootIds && topology.warnings.probeOnlyRootIds.length
+        .alert.alert-warning.monitor-alert
+          strong= t('monitor.root_probe_only')
+          p= t('monitor.root_probe_only_desc', {ids: topology.warnings.probeOnlyRootIds.join(', ')})
       if topology.failover && !topology.failover.ready
         .alert.alert-warning.monitor-alert
           strong= t('monitor.failover_attention')
