@@ -13,6 +13,7 @@ on:
       - deploy.sh
       - install.sh
       - manage.sh
+      - host-network-diagnostics.py
       - uninstall.sh
       - planet-bundle.sh
       - root-manage.sh
@@ -35,6 +36,7 @@ on:
       - deploy.sh
       - install.sh
       - manage.sh
+      - host-network-diagnostics.py
       - uninstall.sh
       - planet-bundle.sh
       - root-manage.sh
@@ -86,12 +88,14 @@ jobs:
           node --check tests/browser/run.mjs
           for source in tests/*.cjs; do node --check "$source"; done
           python3 -m py_compile scripts/controller_standby.py tests/controller-standby.py
+          python3 tests/host-network-diagnostics.py
           python3 tests/controller-standby.py
           node tests/ui-models.cjs
           node tests/communication-stats.cjs
           node tests/endpoint-probes.cjs
           node tests/install-config.cjs
           node tests/root-status.cjs
+          node tests/host-diagnostics.cjs
           node tests/ui-listen.cjs
           node tests/ui-interactions.cjs
           node tests/manage-restore.cjs
@@ -175,6 +179,13 @@ jobs:
 
       - name: Verify ordinary backup, disaster recovery and rollback
         run: sudo "$(command -v node)" tests/manage-restore-docker.cjs zerotier-planet:ci-test
+
+      - name: Verify Root diagnostics rendering
+        run: |
+          docker run --rm --network none --entrypoint node \
+            -v "$GITHUB_WORKSPACE:/repo:ro" -w /repo \
+            -e NODE_PATH=/opt/ztncui/src/node_modules \
+            zerotier-planet:ci-test tests/root-diagnostics-render.cjs
 
       - uses: actions/setup-node@v6
         with:

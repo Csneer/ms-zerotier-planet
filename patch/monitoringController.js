@@ -6,6 +6,7 @@ const got = require('got');
 const storage = require('node-persist');
 const statusTools = require('../uiStatus');
 const rootStatus = require('../rootStatus');
+const hostDiagnostics = require('../hostDiagnostics');
 const communicationStats = require('../communicationStats');
 const endpointProbes = require('../endpointProbes');
 const zt = require('./zt');
@@ -110,7 +111,9 @@ async function collectRoots(serviceStatus, peers, probe) {
   try {
     metadata = JSON.parse(await fs.promises.readFile('/app/config/planet-roots.json', 'utf8'));
   } catch (_) { /* Show unavailable metadata instead of inventing a topology. */ }
-  return rootStatus.build(metadata, service, planetPeers, client);
+  const topology = rootStatus.build(metadata, service, planetPeers, client);
+  topology.hostDiagnostics = await hostDiagnostics.collect(topology);
+  return topology;
 }
 
 function memberVersion(member, peer) {

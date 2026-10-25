@@ -125,7 +125,8 @@ function build(metadata, service, peers, probe, env = process.env) {
     const result = {id, local, endpoints: root.stableEndpoints.slice(),
       service: serviceObservation, probe: probeObservation};
     result.evidence = rootEvidence(result);
-    result.ready = result.evidence !== 'none';
+    // An independent probe cannot establish this instance's upstream path.
+    result.ready = isReachable(result.service);
     return result;
   }) : [];
   const runtimeWorldId = timestamp(service.planetWorldId);
@@ -149,7 +150,8 @@ function build(metadata, service, peers, probe, env = process.env) {
     reachableCount: roots.filter(root => root.local || root.service.state === 'reachable').length,
     probeReachableCount: roots.filter(root => root.probe.state === 'reachable').length,
     failover: failoverSummary(roots, worldMatch),
-    warnings: {negativeLatencyRoots, negativeLatencyCount: negativeLatencyRoots.length}};
+    warnings: {negativeLatencyRoots, negativeLatencyCount: negativeLatencyRoots.length,
+      probeOnlyRootIds: roots.filter(root => root.evidence === 'probe').map(root => root.id)}};
 }
 
 module.exports = {build, observation, failoverSummary, rootEvidence};
