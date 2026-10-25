@@ -187,7 +187,7 @@ jobs:
             -e NODE_PATH=/opt/ztncui/src/node_modules \
             zerotier-planet:ci-test tests/root-diagnostics-render.cjs
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: '22'
           cache: npm
