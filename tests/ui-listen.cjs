@@ -20,10 +20,10 @@ async function until(check) {
 function testConfig() {
   assert.deepEqual(uiListen.config({}), {hosts: ['127.0.0.1'], port: 3000});
   assert.deepEqual(uiListen.config({HTTP_HOST: 'localhost', HTTP_PORT: '3443',
-    HTTP_EXTRA_HOSTS: '127.0.0.1, 172.16.100.97,172.16.100.97'}), {
-    hosts: ['127.0.0.1', '172.16.100.97'], port: 3443
+    HTTP_EXTRA_HOSTS: '127.0.0.1, 198.51.100.97,198.51.100.97'}), {
+    hosts: ['127.0.0.1', '198.51.100.97'], port: 3443
   });
-  for (const host of ['example.com', '172.16.0.0/16', '172.16.*', '127.0.0.1:3443']) {
+  for (const host of ['example.com', '198.51.100.0/24', '198.51.100.*', '127.0.0.1:3443']) {
     assert.throws(() => uiListen.config({HTTP_HOST: host}));
     assert.throws(() => uiListen.config({HTTP_EXTRA_HOSTS: host}));
   }

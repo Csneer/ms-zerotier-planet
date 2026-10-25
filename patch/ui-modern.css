@@ -266,10 +266,11 @@ a:hover, a:focus { color: var(--primary-dark); text-decoration: none; }
 .monitor-topology-meta { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 15px; padding: 0 15px 18px; }
 .monitor-root-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; padding: 0 15px 15px; }
 .monitor-root-item { min-width: 0; padding: 15px; border: 1px solid #e4eaf2; border-radius: 12px; background: #fbfcfe; }
+.monitor-root-item:only-child { grid-column: 1 / -1; }
 .monitor-root-item.is-local { border-color: #bce8d7; background: #f5fcf8; }
 .monitor-root-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
 .monitor-root-heading code { display: block; margin-top: 5px; overflow-wrap: anywhere; }
-.monitor-root-detail { display: grid; grid-template-columns: minmax(110px, auto) 1fr; gap: 10px; align-items: baseline; margin-top: 11px; color: var(--muted); }
+.monitor-root-detail { display: grid; grid-template-columns: minmax(100px, 0.7fr) minmax(0, 1.3fr); gap: 10px; align-items: baseline; margin-top: 11px; color: var(--muted); }
 .monitor-root-detail strong, .monitor-root-detail code { color: var(--ink); overflow-wrap: anywhere; }
 .monitor-root-detail small { margin-left: 7px; color: var(--muted); }
 .monitor-listener { display: block; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 12px; overflow-wrap: anywhere; }
@@ -423,8 +424,8 @@ a:hover, a:focus { color: var(--primary-dark); text-decoration: none; }
   .member-table { min-width: 800px; }
   .member-connection-column { display: none; }
   .monitor-summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .monitor-card-row { display: block; }
-  .monitor-card-row > [class*="col-"] { display: block; }
+  .monitor-card-row { display: block; margin-left: 0; margin-right: 0; }
+  .monitor-card-row > [class*="col-"] { display: block; padding-left: 0; padding-right: 0; }
   .monitor-card { min-height: 0; }
   .monitor-root-grid { grid-template-columns: 1fr; }
   .monitor-topology-meta { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -504,4 +505,19 @@ a:hover, a:focus { color: var(--primary-dark); text-decoration: none; }
   .download-guide-title { padding: 3px; }
   .member-header-actions { justify-content: flex-start; }
   .member-header-actions .btn { margin-left: auto; }
+}
+
+/* Root address families: preserve full IPv6 endpoints within narrow cards. */
+.monitor-root-detail > div { min-width: 0; }
+.monitor-root-detail .monitor-path { width: auto; max-width: 100%; word-break: normal; overflow-wrap: anywhere; }
+.monitor-family-row + .monitor-family-row, .monitor-endpoint-row + .monitor-endpoint-row { margin-top: 10px; }
+.monitor-family-heading { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; }
+.monitor-family-label { font-size: 12px; font-weight: 600; color: var(--muted); }
+.monitor-family-heading .path-badge { white-space: normal; }
+.monitor-root-detail .monitor-path-meta { margin-left: 0; }
+@media (min-width: 520px) {
+  .monitor-root-item:only-child .monitor-root-detail { grid-template-columns: 180px minmax(0, 1fr); }
+}
+@media (max-width: 519px) {
+  .monitor-root-detail { grid-template-columns: minmax(0, 1fr); gap: 5px; }
 }

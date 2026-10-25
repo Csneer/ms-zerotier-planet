@@ -4,7 +4,7 @@
 
 ## 适用范围
 
-一个签名的 Planet 可以列出多个不同身份的 Root。客户端仍加入原来的 Network ID，保留原 Controller 的授权、路由和地址分配，因此不必另建 `172.16.101.0/24`，也不必在服务配置里切换 `172.16.100.x`。
+一个签名的 Planet 可以列出多个不同身份的 Root。客户端仍加入原来的 Network ID，保留原 Controller 的授权、路由和地址分配，因此不必另建 `192.0.2.0/24`，也不必在服务配置里切换 `198.51.100.x`。
 
 ```text
 同一签名 Planet ── Root A（独立 identity，公网 A:UDP）
@@ -25,7 +25,11 @@
 
 节点身份并不绑定公网 IP。IP 变化不要求更换 Controller 身份。可以迁移原 Controller，但必须单活，不能把同一身份的数据目录同时在两台机器启动。
 
-默认兼容的 `mkworld` 使用 ZeroTier 1.14.2 格式，最多 4 个 Root，每个 Root 最多 32 个稳定端点。每个端点必须是 `IPv4/端口` 或 `IPv6/端口`，不是 HTTPS URL；Cloudflare HTTP Tunnel / Nginx HTTP 代理不能替代此 UDP 路径。
+默认兼容的 `mkworld` 使用 ZeroTier 1.14.2 格式，最多 4 个 Root，每个 Root 最多 32 个稳定端点。每个端点必须是 `IPv4/端口` 或 `IPv6/端口`，不是 HTTPS URL；IPv6 端点使用不带方括号的形式，例如 `2001:db8::10/9994`。应使用稳定的全球单播地址，避免链路本地地址、临时隐私地址和客户端明确拒绝的隧道地址；Cloudflare HTTP Tunnel / Nginx HTTP 代理不能替代此 UDP 路径。
+
+双栈 Root 可以在同一个 `stableEndpoints` 中同时发布 IPv4 和 IPv6，客户端会按实际路径质量选择。纯 IPv6 Root 在 Planet 格式上合法，但只有具备 IPv6 underlay 的客户端能直接用它启动；IPv4-only 客户端不能通过内置 TCP fallback relay 跨到纯 IPv6 Root。面向混合客户端时，至少保留一个可达 IPv4 Root，最好把关键 Root 都做成双栈，并在客户端 `peers` 中分别确认两族路径。
+
+主机路由、防火墙、ICMPv6、地址族迁移及分族观测的验收步骤见 [IPv6 Root 指南](ipv6-roots.md)。
 
 ## 两种运行方式
 
@@ -90,8 +94,8 @@ B 身份准备示例（镜像需已构建；目录必须为新实例专用，已
 ```json
 {
   "roots": [
-    {"identity": "原Root的完整identity.public", "stableEndpoints": ["203.0.113.10/9994"]},
-    {"identity": "备用Root的完整identity.public", "stableEndpoints": ["198.51.100.20/9994"]}
+    {"identity": "原Root的完整identity.public", "stableEndpoints": ["203.0.113.10/9994", "2001:db8::10/9994"]},
+    {"identity": "备用Root的完整identity.public", "stableEndpoints": ["2001:db8::20/9994"]}
   ]
 }
 ```
@@ -129,7 +133,8 @@ DATA_DIR=/srv/zt-root-b
 ZTNCUI_STATE_DIR=/srv/zt-root-b/ztncui-state
 ZT_PROBE_STATE_DIR=/srv/zt-root-b/probe-state
 ZT_IMAGE=zerotier-planet:multi-root
-IP_ADDR4=198.51.100.20
+IP_ADDR4=
+IP_ADDR6=2001:db8::20
 ZT_PORT=9994
 API_PORT=3443
 PLANET_MODE=external
@@ -138,7 +143,7 @@ HTTP_HOST=127.0.0.1
 HTTP_EXTRA_HOSTS=
 ```
 
-主机 A 如果需要同时从本机回环和 ZeroTier 访问，可使用 `HTTP_HOST=127.0.0.1`、`HTTP_EXTRA_HOSTS=172.16.100.97`。两个地址进入同一个登录后的控制中心和 Root 拓扑页；`HTTP_EXTRA_HOSTS` 只允许明确 IP，不是网段。备用 Root 的 `ROOT_ONLY=1` 不启动管理页，管理入口仍由当前单活 Controller 提供。
+主机 A 如果需要同时从本机回环和 ZeroTier 访问，可使用 `HTTP_HOST=127.0.0.1`、`HTTP_EXTRA_HOSTS=198.51.100.97`。两个地址进入同一个登录后的控制中心和 Root 拓扑页；`HTTP_EXTRA_HOSTS` 只允许明确 IP，不是网段。备用 Root 的 `ROOT_ONLY=1` 不启动管理页，管理入口仍由当前单活 Controller 提供。
 
 确认 `one/identity.public` 与候选 Planet 中 B 的 identity 完全一致，再运行 `./manage.sh up`。不要直接复用 A 的 `.env` 或整个 `one/`。
 
@@ -183,10 +188,10 @@ Root 路径必须活跃且在最近 90 秒内收到回应才显示“近期有�
 ```dotenv
 API_PORT=3443
 HTTP_HOST=127.0.0.1
-HTTP_EXTRA_HOSTS=172.16.100.97
+HTTP_EXTRA_HOSTS=198.51.100.97
 ```
 
-访问 `http://172.16.100.97:3443` 即进入同一个后台；这不会把管理页面开放到公网。不能把 `172.16.*` 或 `172.16.0.0/16` 作为监听地址，必须填写本机实际持有的 IP。主监听地址必须可绑定，附加 ZeroTier 地址若在启动时尚未出现会重试，不影响回环管理入口。两个地址共用账户、会话存储和业务数据，但浏览器 Cookie 按主机隔离，换 IP 不保证自动保留登录。
+访问 `http://198.51.100.97:3443` 即进入同一个后台；这不会把管理页面开放到公网。不能把 `198.51.100.*` 或 `198.51.100.0/24` 作为监听地址，必须填写本机实际持有的 IP。主监听地址必须可绑定，附加 ZeroTier 地址若在启动时尚未出现会重试，不影响回环管理入口。两个地址共用账户、会话存储和业务数据，但浏览器 Cookie 按主机隔离，换 IP 不保证自动保留登录。
 
 这是管理页面的监听配置，不会自动代理其他主机的业务端口。业务服务如需统一入口，应另外配置 Nginx upstream；Cloudflare 隧道、Root UDP 路径以及 Controller 单活是独立的部署事项。管理页面如需 HTTPS，可由 Nginx 代理到 `127.0.0.1:3443`，本次无需迁移 Cloudflare。
 
@@ -250,10 +255,10 @@ sudo node tests/multi-root.mjs zerotier-planet:multi-root
 
 ### 2026-09-20 两机隔离实验记录
 
-本次用两台主机上独立的实验身份和 `10.203.219.0/24` 测试网络验证，不替换生产 Planet 或 Controller。客户端命名空间禁止实验客户端之间的物理 UDP 直连，关闭公共 TCP fallback，仅放行实验 Root 路径；对端 peer 显示 RELAY。
+本次用两台主机上独立的实验身份和 `198.18.0.0/24` 测试网络验证，不替换生产 Planet 或 Controller。客户端命名空间禁止实验客户端之间的物理 UDP 直连，关闭公共 TCP fallback，仅放行实验 Root 路径；对端 peer 显示 RELAY。
 
 - 备用 Root B 公网 `UDP/9994` 可以通信，实验用的 `UDP/19994` 在主机间不可达；Root A 的一段实验物理路径经现有 ZeroTier 网段转发。
-- 最后一次强制 A-only 基线后开放 B，再停 A 的连续测试中，停 A 后约 3 分钟记录到的 144 次探测全部失败，未记录到恢复点。原始记录保留在实验机 `/tmp/zt-forced-failover-1789907476798.jsonl`。
+- 最后一次强制 A-only 基线后开放 B，再停 A 的连续测试中，停 A 后约 3 分钟记录到的 144 次探测全部失败，未记录到恢复点。原始记录保留在维护者的私有实验环境，不随仓库提交。
 - 后续在 A 仍停止、未重启实验客户端的情况下抽测，10 次 ping 全部成功，平均约 11.1 ms；两端仍保留原测试 IP，并均能直接联系 Root B，对端仍为 RELAY。
 - 因为连续测量结束与后续抽测之间没有覆盖记录，**不能据此给出准确切换耗时，也不能声称秒级或无缝热切换验收通过**。只能确认经 B 的通信可以恢复。
 - 实验服务已停止并移除临时容器，测试数据、签名材料和日志仅保留在两机各自的临时实验目录供复核；未写入仓库。实验不包含完全摆脱生产 ZeroTier 物理承载依赖的整机容灾验证。
@@ -262,7 +267,7 @@ sudo node tests/multi-root.mjs zerotier-planet:multi-root
 
 ### 2026-09-21 生产双 Root 的隔离客户端复测
 
-生产 A/B Root 已使用同一份签名 Planet。两台主机分别新建独立客户端 identity 和 Docker 网络命名空间，使用临时测试网络 `10.204.77.0/24`；没有替换普通客户端身份/IP，没有停止生产 Root 或 Controller，也没有改动宿主机/云防火墙。实验 SSH 走备用机公网，不依赖被测 ZeroTier 网络。
+生产 A/B Root 已使用同一份签名 Planet。两台主机分别新建独立客户端 identity 和 Docker 网络命名空间，使用临时测试网络 `198.18.1.0/24`；没有替换普通客户端身份/IP，没有停止生产 Root 或 Controller，也没有改动宿主机/云防火墙。实验 SSH 走备用机公网，不依赖被测 ZeroTier 网络。
 
 客户端版本为 1.16.2 和 1.16.1。关闭 TCP fallback 和端口映射；在两个实验命名空间内只允许各公网 Root 的 UDP/9994，禁止普通 peer 的物理 UDP。两端 peer 记录持续没有对端直连路径，规则计数验证流量经允许的 Root；公网 hairpin 在两端均实际可用，不再通过旧 ZeroTier 网段承载实验 Root 路径。
 

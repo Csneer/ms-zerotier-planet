@@ -18,6 +18,19 @@ const observed = overrides => observation({...peer, ...overrides}, now);
 
 assert.equal(observed({}).state, 'reachable');
 assert.equal(observed({}).latency, 7);
+assert.equal(observed({}).families.ipv4.state, 'reachable');
+assert.equal(observed({}).families.ipv6.state, 'unseen');
+const v6Peer = {...peer, paths: [{active: true, preferred: true, address: '2001:db8::20/9994', lastReceive: now - 10} ]};
+assert.equal(observation(v6Peer, now).state, 'reachable');
+assert.equal(observation(v6Peer, now).families.ipv4.state, 'unseen');
+assert.equal(observation(v6Peer, now).families.ipv6.state, 'reachable');
+const dualPeer = {...peer, paths: [
+  {active: true, preferred: true, address: '198.51.100.1/9994', lastReceive: now - 1000},
+  {active: true, preferred: false, address: '2001:db8::20/9994', lastReceive: now - 120000}
+]};
+assert.equal(observation(dualPeer, now).state, 'reachable');
+assert.equal(observation(dualPeer, now).families.ipv4.state, 'reachable');
+assert.equal(observation(dualPeer, now).families.ipv6.state, 'stale');
 for (const lastReceive of [undefined, null, '', false, true, Infinity, 'Infinity', {}, [], now + 60000]) {
   const result = observed({paths: [{...activePath, lastReceive, lastSend: now}]});
   assert.equal(result.state, 'unseen');
@@ -41,6 +54,9 @@ assert.equal(observed({latency: -1}).latencyAnomaly, false);
 assert.equal(observed({latency: '-1'}).latencyAnomaly, false);
 assert.equal(observed({latency: 7}).latencyAnomaly, false);
 assert.equal(observed({role: 'LEAF'}).state, 'unrecognized');
+assert.equal(observed({role: undefined}).state, 'unrecognized', 'a peer without a role is not proven to be a Planet Root');
+assert.equal(observation(undefined, now).state, 'unseen', 'an absent peer is no response, not an unrecognized peer');
+assert.equal(observation(undefined, now).families.ipv4.state, 'unseen');
 assert.equal(observed({role: 'LEAF'}).latency, null);
 assert.equal(rootEvidence({local: true, service: {state: 'local'}, probe: {state: 'unseen'}}), 'local');
 assert.equal(rootEvidence({local: false, service: {state: 'reachable'}, probe: {state: 'unseen'}}), 'server');
@@ -123,3 +139,25 @@ assert.ok(!JSON.stringify(safe).includes('identity'));
 safe.roots[0].endpoints.push('192.0.2.2/9994');
 assert.equal(metadata.roots[0].stableEndpoints.length, 1, 'the model must not expose mutable metadata arrays');
 console.log('PASS: Root metadata projects only public scalar fields and rejects private/duplicate identities or invalid endpoints');
+
+// Declared address families and observed paths are separate facts.
+const familyModel = build(metadata, service, [v6Peer], null, {});
+assert.equal(familyModel.roots[0].service.families.ipv4.state, 'local_unverified');
+assert.equal(familyModel.roots[0].service.families.ipv6.state, 'not_configured');
+assert.equal(familyModel.roots[1].service.families.ipv4.state, 'not_configured');
+assert.equal(familyModel.roots[1].service.families.ipv6.state, 'reachable');
+assert.equal(familyModel.roots[1].probe.families.ipv4.state, 'not_configured');
+assert.equal(familyModel.roots[1].probe.families.ipv6.state, 'unavailable');
+const unadvertised = build(metadata, service, [peer], null, {}).roots[1];
+assert.equal(unadvertised.service.families.ipv4.configured, false);
+assert.equal(unadvertised.service.families.ipv4.state, 'reachable', 'do not discard a real path on an unadvertised family');
+const dualMetadata = {...metadata, roots: [{identity: `${other}:0:bb`, stableEndpoints: ['198.51.100.1/9994', '2001:db8::20/9994']}]};
+for (const paths of [dualPeer.paths, dualPeer.paths.map(path => ({...path, lastReceive: path.address.includes(':') ? now - 1000 : now - 120000}))]) {
+  const root = build(dualMetadata, service, [{...peer, paths}], null, {}).roots[0];
+  assert.equal(root.ready, true, 'either family keeps a dual-stack Root usable');
+  assert.equal(root.service.state, 'reachable');
+  assert.deepEqual(Object.values(root.service.families).map(family => family.state).sort(), ['reachable', 'stale']);
+}
+console.log('PASS: configuration, local identity and external address-family evidence remain distinct');
+
+assert.equal(build(metadata, service, [{...v6Peer, role: 'LEAF'}], null, {}).roots[1].service.families.ipv4.state, 'not_configured');

@@ -3,11 +3,24 @@ mixin root_observation(observation)
   span.path-badge(class=healthy ? 'is-direct' : 'is-unknown')= t('monitor.root_state_' + observation.state)
   if observation.latency !== null
     small.monitor-path-meta #{observation.latency} ms
-  if observation.lastReceiveMs !== null && observation.state !== 'local'
-    small.monitor-path-meta= t('monitor.root_received_ago', {age: formatAge(observation.lastReceiveMs)})
   if observation.latencyAnomaly
     span.risk-badge= t('monitor.root_latency_anomaly')
-  if observation.path
+  if observation.state === 'unavailable'
+    p.monitor-path-meta= t('monitor.root_probe_unavailable_help')
+  else if observation.families
+    each family in ['ipv4', 'ipv6']
+      - const familyObservation = observation.families[family]
+      .monitor-family-row
+        .monitor-family-heading
+          span.monitor-family-label= t('monitor.root_family_' + family)
+          span.path-badge(class=familyObservation.state === 'reachable' ? 'is-direct' : 'is-unknown')= t('monitor.root_state_' + familyObservation.state)
+        if familyObservation.lastReceiveMs !== null && !['local', 'local_unverified', 'not_configured'].includes(familyObservation.state)
+          small.monitor-path-meta= t('monitor.root_received_ago', {age: formatAge(familyObservation.lastReceiveMs)})
+        if familyObservation.path
+          code.monitor-path= familyObservation.path
+    if observation.state === 'local'
+      p.monitor-path-meta= t('monitor.root_local_scope')
+  else if observation.path
     code.monitor-path= observation.path
 
 mixin roots_panel(topology, listeners)
@@ -91,7 +104,9 @@ mixin roots_panel(topology, listeners)
               span= t('monitor.root_endpoints')
               div
                 each endpoint in root.endpoints
-                  code.monitor-path= endpoint
+                  .monitor-endpoint-row
+                    span.monitor-family-label= endpoint.includes(':') ? 'IPv6' : 'IPv4'
+                    code.monitor-path= endpoint
             .monitor-root-detail
               span= t('monitor.root_server_view')
               div

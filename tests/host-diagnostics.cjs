@@ -7,11 +7,11 @@ const host = require('../patch/hostDiagnostics');
 const {build} = require('../patch/rootStatus');
 const now = 1792800000000;
 const ids = ['1111111111', '2222222222', '3333333333'];
-const metadata = {id: 1234, timestamp: now, roots: ids.map((id, i) => ({identity: `${id}:0:aa`, stableEndpoints: [`172.16.100.${[97, 99, 100][i]}/9994`]}))};
+const metadata = {id: 1234, timestamp: now, roots: ids.map((id, i) => ({identity: `${id}:0:aa`, stableEndpoints: [`198.51.100.${[97, 99, 100][i]}/9994`]}))};
 const service = {address: ids[0], clock: now, planetWorldId: 1234, planetWorldTimestamp: now};
 const peer = i => ({address: ids[i], role: 'PLANET', paths: [{address: metadata.roots[i].stableEndpoints[0], active: true, lastReceive: now - 1000}]});
 const topology = build(metadata, service, [], {available: true, status: {clock: now}, peers: [peer(2)]});
-const snapshot = {schema: 1, collectedAt: now, scope: 'known-root-drain', collectors: {ipv4: 'ok', ipv6: 'ok', service: 'ok'}, policy: {present: true, active: true, inputRestricted: true, outputRestricted: true, allowedPeers: ['172.16.100.99'], allowedEndpoints: ['172.16.100.99/9994'], auditedPort: 9994, reviewRequired: false, serviceActive: true, serviceEnabled: true}};
+const snapshot = {schema: 1, collectedAt: now, scope: 'known-root-drain', collectors: {ipv4: 'ok', ipv6: 'ok', service: 'ok'}, policy: {present: true, active: true, inputRestricted: true, outputRestricted: true, allowedPeers: ['198.51.100.99'], allowedEndpoints: ['198.51.100.99/9994'], auditedPort: 9994, reviewRequired: false, serviceActive: true, serviceEnabled: true}};
 const withPolicy = overrides => {
   const policy = {...snapshot.policy, ...overrides};
   if (overrides.allowedPeers && !overrides.allowedEndpoints) {
@@ -28,7 +28,7 @@ assert.equal(blocked.state, 'restricted_no_response');
 assert.deepEqual(blocked.allowedRoots, [{id: ids[1], local: false, responding: false}]);
 const recovered = build(metadata, service, [peer(1)], null);
 assert.equal(host.build(snapshot, recovered, now).state, 'single_path');
-assert.equal(host.build(withPolicy({allowedPeers: ['172.16.100.99', '172.16.100.100']}), build(metadata, service, [peer(1), peer(2)], null), now).state, 'restricted');
+assert.equal(host.build(withPolicy({allowedPeers: ['198.51.100.99', '198.51.100.100']}), build(metadata, service, [peer(1), peer(2)], null), now).state, 'restricted');
 assert.equal(host.build(withPolicy({allowedPeers: ['192.0.2.1']}), topology, now).state, 'review');
 assert.equal(host.build(snapshot, {available: false, roots: []}, now).state, 'review');
 assert.equal(host.build(withPolicy({reviewRequired: true}), topology, now).state, 'unknown');
@@ -36,13 +36,13 @@ assert.equal(host.build({...snapshot, collectors: {...snapshot.collectors, ipv6:
 for (const restriction of [{inputRestricted: false}, {outputRestricted: false}]) {
   assert.equal(host.build(withPolicy(restriction), recovered, now).state, 'review');
 }
-assert.equal(host.build(withPolicy({allowedEndpoints: ['172.16.100.100/9994']}), recovered, now).state, 'unknown');
-assert.equal(host.build(withPolicy({allowedEndpoints: ['172.16.100.99/9993']}), recovered, now).state, 'unknown');
+assert.equal(host.build(withPolicy({allowedEndpoints: ['198.51.100.100/9994']}), recovered, now).state, 'unknown');
+assert.equal(host.build(withPolicy({allowedEndpoints: ['198.51.100.99/9993']}), recovered, now).state, 'unknown');
 const wrongPort = JSON.parse(JSON.stringify(recovered));
-wrongPort.roots[1].service.path = '172.16.100.99/9993';
+wrongPort.roots[1].service.path = '198.51.100.99/9993';
 assert.equal(host.build(snapshot, wrongPort, now).state, 'review');
 assert.equal(host.build(snapshot, wrongPort, now).allowedRoots[0].responding, false);
-wrongPort.roots[1].endpoints = ['172.16.100.99/9993'];
+wrongPort.roots[1].endpoints = ['198.51.100.99/9993'];
 assert.equal(host.build(snapshot, wrongPort, now).state, 'review');
 const ipv6 = JSON.parse(JSON.stringify(recovered));
 ipv6.roots[1].endpoints = ['2001:0db8:0:0:0:0:0:1/9994'];

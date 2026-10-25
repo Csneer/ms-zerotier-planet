@@ -85,7 +85,7 @@ try:
         raise ValueError()
     address = ipaddress.ip_address(host)
     target = getattr(address, 'ipv4_mapped', None) or address
-    if target.is_unspecified or target.is_multicast or target.is_loopback or str(target) == '255.255.255.255':
+    if target.is_unspecified or target.is_multicast or target.is_loopback or str(target) == '255.255.255.255' or (address.version == 6 and (address.ipv4_mapped is not None or address.is_link_local)):
         raise ValueError()
     print(str(address) + '/' + str(int(port)))
 except (ValueError, TypeError):
@@ -98,7 +98,7 @@ normalize_endpoints() {
     (($# >= 1 && $# <= 32)) || die 'A Root must have between 1 and 32 endpoints'
     for endpoint in "$@"; do
         normalized=$(normalize_endpoint "$endpoint") \
-            || die 'Invalid endpoint; use literal unicast IP/port (1..65535), no wildcard, loopback, multicast or zone'
+            || die 'Invalid endpoint; use literal unicast IP/port (1..65535), no wildcard, loopback, multicast, IPv6 link-local, IPv4-mapped IPv6 or zone'
         jq -e --arg value "$normalized" 'index($value) == null' <<<"$list" >/dev/null \
             || die 'Duplicate endpoint'
         list=$(jq -cn --argjson current "$list" --arg value "$normalized" '$current + [$value]')

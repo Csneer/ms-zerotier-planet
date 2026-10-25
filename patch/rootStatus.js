@@ -33,9 +33,14 @@ function peerMap(peers) {
     .map(peer => [nodeId(peer.address), peer]));
 }
 
-function observation(peer, now) {
-  now = timestamp(now) || Date.now();
-  const paths = peer && Array.isArray(peer.paths) ? peer.paths.filter(p => p && endpoint(p.address)) : [];
+function familyName(address) {
+  if (typeof address !== 'string') return null;
+  const host = address.slice(0, address.lastIndexOf('/'));
+  const family = isIP(host);
+  return family === 4 ? 'ipv4' : family === 6 ? 'ipv6' : null;
+}
+
+function pathObservation(paths, now, role, peerPresent = true) {
   const receiveTime = path => {
     const value = timestamp(path.lastReceive);
     return value && value <= now + SAMPLE_SKEW_MS ? value : null;
@@ -45,16 +50,35 @@ function observation(peer, now) {
   const active = statusTools.activePaths({paths});
   const recent = active.filter(p => receiveTime(p) !== null && now - receiveTime(p) <= RECENT_RECEIVE_MS);
   const path = statusTools.preferredPath({paths: recent.length ? recent : active});
-  const state = peer && peer.role !== 'PLANET' ? 'unrecognized' : recent.length ? 'reachable' : received.length ? 'stale' : 'unseen';
+  const state = !peerPresent ? 'unseen' : role !== 'PLANET' ? 'unrecognized' : recent.length ? 'reachable' : received.length ? 'stale' : 'unseen';
+  return {state, lastReceiveMs: age, path: path ? path.address : null};
+}
+
+function observation(peer, now) {
+  now = timestamp(now) || Date.now();
+  const paths = peer && Array.isArray(peer.paths) ? peer.paths.filter(p => p && endpoint(p.address)) : [];
+  const peerPresent = Boolean(peer);
+  const base = pathObservation(paths, now, peer && peer.role, peerPresent);
+  const families = {};
+  for (const family of ['ipv4', 'ipv6']) {
+    families[family] = pathObservation(paths.filter(path => familyName(path.address) === family), now, peer && peer.role, peerPresent);
+  }
   const latency = peer ? numeric(peer.latency) : NaN;
   return {
-    state,
-    lastReceiveMs: age,
-    latency: state === 'reachable' && latency >= 0 ? latency : null,
+    ...base,
+    latency: base.state === 'reachable' && latency >= 0 ? latency : null,
     // -1 is ZeroTier's normal "no latency sample" sentinel.
     latencyAnomaly: Number.isFinite(latency) && latency < 0 && latency !== -1,
-    path: path ? path.address : null
+    families
   };
+}
+
+function localObservation(endpoints) {
+  const families = {};
+  for (const family of ['ipv4', 'ipv6']) {
+    families[family] = {state: endpoints.some(endpoint => familyName(endpoint) === family) ? 'local_unverified' : 'not_configured', lastReceiveMs: null, path: null};
+  }
+  return {state: 'local', lastReceiveMs: 0, latency: null, latencyAnomaly: false, path: null, families};
 }
 
 function isReachable(observation) {
@@ -119,9 +143,20 @@ function build(metadata, service, peers, probe, env = process.env) {
   const roots = available ? metadata.roots.map(root => {
     const id = root.identity.split(':')[0].toLowerCase();
     const local = id === nodeId(service.address);
-    const serviceObservation = local ? {state: 'local', lastReceiveMs: 0, latency: null, latencyAnomaly: false, path: null} : observation(byId.get(id), now);
+    const serviceObservation = local ? localObservation(root.stableEndpoints) : observation(byId.get(id), now);
     const probeObservation = probeAvailable ? observation(probeById.get(id), probeNow) :
-      {state: 'unavailable', lastReceiveMs: null, latency: null, latencyAnomaly: false, path: null};
+      {state: 'unavailable', lastReceiveMs: null, latency: null, latencyAnomaly: false, path: null, families: {ipv4: {state: 'unavailable', lastReceiveMs: null, path: null}, ipv6: {state: 'unavailable', lastReceiveMs: null, path: null}}};
+    // Configuration is not reachability evidence. Keep observed paths even when
+    // their address family is not advertised as a stable endpoint.
+    for (const family of ['ipv4', 'ipv6']) {
+      const configured = root.stableEndpoints.some(address => familyName(address) === family);
+      for (const view of [serviceObservation, probeObservation]) {
+        view.families[family].configured = configured;
+        if (!configured && view.families[family].path === null && view.families[family].lastReceiveMs === null) {
+          view.families[family].state = 'not_configured';
+        }
+      }
+    }
     const result = {id, local, endpoints: root.stableEndpoints.slice(),
       service: serviceObservation, probe: probeObservation};
     result.evidence = rootEvidence(result);
@@ -154,4 +189,4 @@ function build(metadata, service, peers, probe, env = process.env) {
       probeOnlyRootIds: roots.filter(root => root.evidence === 'probe').map(root => root.id)}};
 }
 
-module.exports = {build, observation, failoverSummary, rootEvidence};
+module.exports = {build, observation, failoverSummary, rootEvidence, familyName};

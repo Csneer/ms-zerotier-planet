@@ -76,3 +76,7 @@ The app is built from patched upstream ztncui templates and served by Node/Expre
 
 - [ ] Owner: product · Decide whether to vendor a dedicated icon set after the current local icon pass; impact: visual consistency and long-term asset ownership.
 - [ ] Owner: operations · Provide a disposable signed test instance URL for screenshot-level visual QA; impact: live page evidence beyond template and CSS checks.
+
+## Root address-family observations
+
+Root cards separate signed stable endpoints from actual service and probe paths. IPv4 and IPv6 use the same visual weight. An unconfigured family is neutral, a local endpoint is explicitly unverified externally, and an unavailable probe reports missing evidence rather than a failed network. Either family can supply a usable dual-stack Root path. Show each observed path once, retain its full address with wrapping, and stack labels above values below 520px. Validate bilingual models and rendering; external IPv6 availability requires a real external host and is not established by local rendering or local Root identity.

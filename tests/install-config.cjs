@@ -14,7 +14,7 @@ const realDocker = spawnSync('bash', ['-c', 'command -v docker'], {encoding: 'ut
 assert.ok(realDocker, 'Docker Compose CLI is required, but no daemon is used');
 const cleanEnv = {...process.env};
 for (const key of Object.keys(cleanEnv)) {
-  if (/^(ZT_|COMPOSE_|HTTP_|IP_ADDR|PLANET_|ROOT_ONLY$|DATA_DIR$|BACKUP_DIR$|CONTAINER_NAME$|IMAGE|SOURCE_|API_PORT$|DEFAULT_NETWORK_MTU$)/.test(key)) delete cleanEnv[key];
+  if (/^(ZT_|COMPOSE_|HTTP_|IP_ADDR|PLANET_|ROOT_ONLY$|CONTROLLER_ONLY$|DATA_DIR$|BACKUP_DIR$|CONTAINER_NAME$|IMAGE|SOURCE_|API_PORT$|DEFAULT_NETWORK_MTU$)/.test(key)) delete cleanEnv[key];
 }
 
 function fixture(name) {
@@ -72,6 +72,58 @@ exit 99
   fs.writeFileSync(staged.envFile, initial.replace(`ZTNCUI_STATE_DIR=${staged.data}/ztncui-state`, 'ZTNCUI_STATE_DIR=/'));
   fails(run(staged, 'install.sh', ['--configure-only']), /unsafe persistent path/);
   console.log('PASS: external staging reuses resolved .env, keeps strict up guards and checks ports/modes/paths');
+
+  const v6only = fixture('v6-only');
+  ok(run(v6only, 'install.sh', ['--ipv6', '2001:db8::20', '--data-dir', v6only.data, '--configure-only']));
+  const v6env = fs.readFileSync(v6only.envFile, 'utf8');
+  assert.match(v6env, /^IP_ADDR4=$/m);
+  assert.match(v6env, /^IP_ADDR6=2001:db8::20$/m);
+  ok(run(v6only, 'manage.sh', ['doctor']));
+  for (const [flag, value] of [['--ipv6', 'not-an-ip'], ['--ip', '2001:db8::1']]) {
+    const invalid = fixture('invalid-' + flag.slice(2));
+    fails(run(invalid, 'install.sh', [flag, value, '--data-dir', invalid.data, '--configure-only']), /invalid IPv/);
+    assert.ok(!fs.existsSync(invalid.envFile));
+  }
+  const invalidRootV6 = ['::', '::1', '0:0:0:0:0:0:0:1', 'fe80::1', 'febf::1', 'ff02::1', '::ffff:0.0.0.0', '::ffff:127.0.0.1', '::ffff:224.0.0.1', '::ffff:198.51.100.10'];
+  for (const [index, address] of invalidRootV6.entries()) {
+    const invalid = fixture('unusable-v6-' + index);
+    fails(run(invalid, 'install.sh', ['--ipv6', address, '--data-dir', invalid.data, '--configure-only']), /invalid IPv6/);
+    assert.ok(!fs.existsSync(invalid.envFile));
+    fs.writeFileSync(v6only.envFile, v6env.replace('IP_ADDR6=2001:db8::20', 'IP_ADDR6=' + address));
+    fails(run(v6only, 'manage.sh', ['doctor']), /IP_ADDR6 is invalid/);
+  }
+  const ula = fixture('ula');
+  ok(run(ula, 'install.sh', ['--ipv6', 'fd00::20', '--data-dir', ula.data, '--configure-only']));
+  const ulaEnv = fs.readFileSync(ula.envFile, 'utf8').replace(/^HTTP_HOST=.*$/m, 'HTTP_HOST=::1');
+  fs.writeFileSync(ula.envFile, ulaEnv);
+  ok(run(ula, 'manage.sh', ['doctor']));
+  fs.writeFileSync(v6only.envFile, v6env);
+  console.log('PASS: unusable IPv6 Root endpoints rejected; ULA and HTTP loopback remain valid');
+  const dual = fixture('dual-stack');
+  ok(run(dual, 'install.sh', ['--ip', '198.51.100.30', '--ipv6', '2001:db8::30', '--data-dir', dual.data, '--configure-only']));
+  assert.match(fs.readFileSync(dual.envFile, 'utf8'), /^IP_ADDR4=198.51.100.30$/m);
+  assert.match(fs.readFileSync(dual.envFile, 'utf8'), /^IP_ADDR6=2001:db8::30$/m);
+  ok(run(dual, 'manage.sh', ['doctor']));
+  // Compose intentionally turns an omitted family into an explicit empty
+  // container variable. Check resolved values, not only the .env text.
+  for (const [contents, ipv4, ipv6, valid] of [
+    [v6env, '', '2001:db8::20', true],
+    [v6env.replace(/^IP_ADDR4=.*\n/m, ''), '', '2001:db8::20', true],
+    [v6env.replace(/^IP_ADDR6=.*$/m, 'IP_ADDR6='), '', '', false],
+    [v6env.replace(/^IP_ADDR4=.*$/m, 'IP_ADDR4=198.51.100.20').replace(/^IP_ADDR6=.*\n/m, ''), '198.51.100.20', '', true]
+  ]) {
+    fs.writeFileSync(v6only.envFile, contents);
+    const expanded = spawnSync(realDocker, ['compose', 'config', '--format', 'json'], {
+      cwd: v6only.dir, env: cleanEnv, encoding: 'utf8', timeout: 30000
+    });
+    ok(expanded);
+    const environment = JSON.parse(expanded.stdout).services.myztplanet.environment;
+    assert.equal(environment.IP_ADDR4, ipv4);
+    assert.equal(environment.IP_ADDR6, ipv6);
+    if (valid) ok(run(v6only, 'manage.sh', ['doctor']));
+    else fails(run(v6only, 'manage.sh', ['doctor']), /Root requires IP_ADDR4 or IP_ADDR6/);
+  }
+  console.log('PASS: IPv6-only/dual-stack validation and Compose empty or omitted family semantics');
 
   const inherited = fixture('inherited');
   ok(run(inherited, 'install.sh', ['--ip', '198.51.100.21', '--data-dir', inherited.data, '--configure-only'],
