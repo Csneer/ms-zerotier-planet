@@ -97,7 +97,7 @@ install -m 0644 examples/root-only.service /etc/systemd/system/zerotier-root-b.s
 模板配置使用以下边界：
 
 - `9994/UDP` 是对外 Root 稳定端点。
-- `9994/TCP` 是本实例的 HTTP 管理 API，不是给外部客户端使用的 HTTPS 中转端口。不要把它开放到公网或整个 `172.16.*` 网络。
+- `9994/TCP` 是本实例的 HTTP 管理 API，不是给外部客户端使用的 HTTPS 中转端口。不要把它开放到公网或整个 `198.51.100.*` 网络。
 - `allowManagementFrom` 只列出回环网段；ZeroTier 本身始终允许回环来源。普通管理操作仍需本实例的 `authtoken.secret`。不要复制客户端/Controller 的 token，也不要把 token 写到文档或终端日志。
 - 即使 `ss` 显示 TCP socket 绑定 `0.0.0.0` 或 `::`，也不代表 API 被删掉或只有 loopback socket。API 来源限制是应用层检查；应同时用云安全组和宿主机防火墙阻止非回环来源访问 `9994/TCP`，包括 Docker/ZeroTier 接口上的请求。规则应由现有防火墙管理方式持久化，不要直接套用会改动 SSH 或现有服务的全局规则。
 - `allowTcpFallbackRelay=false` 禁止本实例使用公共 TCP fallback；`portMappingEnabled=false` 禁止自动端口映射。黑名单避免把 ZeroTier、Docker 等虚拟接口当作 Root 的物理 underlay。

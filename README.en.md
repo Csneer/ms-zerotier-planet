@@ -2,32 +2,45 @@
 
 [中文](README.md)
 
+<div align="center">
+
 [![CI](https://github.com/Csneer/ms-zerotier-planet/actions/workflows/image-build.yml/badge.svg)](https://github.com/Csneer/ms-zerotier-planet/actions/workflows/image-build.yml)
 [![Latest release](https://img.shields.io/github/v/release/Csneer/ms-zerotier-planet?display_name=tag)](https://github.com/Csneer/ms-zerotier-planet/releases)
 
-**Run your own ZeroTier private network and reach your home or office services from anywhere.**
+<h2>Put your ZeroTier entry point back in your hands.</h2>
 
-`ms-zerotier-planet` bundles a private ZeroTier Planet, Root, Controller, and Web console. Put laptops, NAS boxes, development machines, and cloud servers on one private virtual network, then reach SSH, RDP, HTTP, databases, and other internal services without changing the applications themselves or depending on a third-party public Planet. Clients must support replacing the Planet file; see the client compatibility table below.
+<p><strong>Private Planet · Web Controller · IPv4 / IPv6 Roots</strong></p>
 
-A small **2 vCPU / 2 GiB** cloud VM (including common Aliyun instances) is a practical starting point for personal and small-team, low-to-moderate traffic. The real limit depends on bandwidth, region, NAT, client count, and traffic patterns. Add an independent Root when you need more resilience.
+<p>Use one affordable cloud VM to connect your NAS, workstations, and servers on one private network.</p>
+
+<p><a href="#quick-start-in-60-seconds">Quick start</a> · <a href="docs/ipv6-roots.md">IPv6 Root guide</a> · <a href="docs/agent-install.md">Agent guide</a> · <a href="CHANGELOG.md">Changelog</a></p>
+
+</div>
+
+---
+
+## In one sentence
+
+`ms-zerotier-planet` packages a maintainable ZeroTier Planet, Root, Controller, and Web console. You keep control of the network entry point, member authorization, and virtual addresses; clients continue to use any ZeroTier build that supports replacing its `planet` file, while SSH, RDP, HTTP, databases, and other services remain unchanged.
 
 ```text
-your devices and private services ── ZeroTier network ── your Planet + Root
-                                                        └─ Controller + Web console
+your devices and private services  ─────  private ZeroTier network  ─────  your Planet + Root
+                                                                                 └─ Controller + Web console
 ```
 
-## Why this project
+## Why start here
 
-- **Own the control plane**: Planet, identities, networks, authorizations, and virtual IPs stay on infrastructure you control.
-- **Start on a small VM**: the default single-Root setup configures, builds, starts, and health-checks the service for you.
-- **No application changes**: use the standard ZeroTier clients and keep existing SSH, Web, file-sharing, and database services.
-- **Manage from a browser**: create networks, authorize members, adjust MTU, and download signed `planet`/`.moon` files with SHA-256.
-- **Grow into redundancy**: one Planet can publish multiple Roots and isolated backup Roots with documented signing and readiness checks.
-- **Predictable operations**: upgrades preserve data only after identity and signing-chain checks; a single-active Controller is not presented as automatic HA.
+| Start small | Own the control plane | Leave room to grow |
+| --- | --- | --- |
+| A 2 vCPU / 2 GiB cloud VM is a practical start for personal and small-team, low-to-moderate traffic. | Planet, identities, networks, authorizations, and virtual IPs stay on infrastructure you control. | Start with one Root, then add independent Roots; IPv4, IPv6, and dual-stack are supported. |
 
-## Quick start
+- **Manage visually**: create networks, authorize members, adjust MTU, and download signed `planet` / `.moon` files with SHA-256.
+- **Migrate deliberately**: upgrades preserve identity and signing chains, with explicit non-destructive backup and restore boundaries.
+- **See the path**: the dashboard and Connection Monitor share Controller / World / Root topology and distinguish recent responses, stale paths, and unavailable probes.
 
-Use a Linux host with a stable public IPv4 address, allow `9994/udp`, and install Docker Engine 24+, Compose v2, Bash, Git, Python 3, `jq`, and GNU coreutils (including `realpath`). The commands require Docker access and write permission to the data directory. Keep the source checkout separate from runtime data:
+## Quick start in 60 seconds
+
+Use a Linux host with a stable public IPv4 address or globally routable IPv6 address. Allow `9994/udp` for the address family you use, and install Docker Engine 24+, Compose v2, Bash, Git, Python 3, `jq`, and GNU coreutils.
 
 ```bash
 git clone https://github.com/Csneer/ms-zerotier-planet.git
@@ -35,40 +48,33 @@ cd ms-zerotier-planet
 ./install.sh --ip YOUR_PUBLIC_IPV4 --data-dir /srv/zerotier-planet
 ```
 
-The Web console listens on the cloud server's loopback address by default. From your own computer, keep an SSH tunnel open:
+For an IPv6-only or dual-stack Root:
+
+```bash
+# IPv6-only
+./install.sh --ipv6 YOUR_PUBLIC_IPV6 --data-dir /srv/zerotier-planet
+
+# dual-stack
+./install.sh --ip YOUR_PUBLIC_IPV4 --ipv6 YOUR_PUBLIC_IPV6 \
+  --data-dir /srv/zerotier-planet
+```
+
+Open the console through an SSH tunnel:
 
 ```bash
 ssh -N -L 3443:127.0.0.1:3443 user@server
 ```
 
-Then open `http://127.0.0.1:3443` in your local browser, sign in with `admin/password`, and change the password immediately. After reviewing firewall and access controls, you can instead set `HTTP_HOST` or `HTTP_EXTRA_HOSTS` to the server's ZeroTier address.
+Visit `http://127.0.0.1:3443`, sign in with `admin/password`, and change the password immediately. Create a network in `Networks`, download `planet` from `Downloads`, join the network from each client, then authorize its member in the console.
 
-Then:
+> **Current source note:** IPv6-only installation and address-family migration are Unreleased improvements; the `v1.1.0` image does not include them. Build the current checkout or use a verified image containing these changes. See the [IPv6 Root guide (Chinese)](docs/ipv6-roots.md) for host, firewall, and migration checks.
 
-1. Create a network in `Networks`.
-2. Download `planet` from `Downloads` and install it in each client's ZeroTier data directory.
-3. Start the client, join the network, and authorize the member in the Web console.
-4. Use its ZeroTier address to reach SSH, Web, or other private services.
+## Clear boundaries
 
-The default install builds from the checked-out source. If you publish an image to GHCR, you can pull a versioned image instead:
+This is a private virtual network for multiple TCP/UDP services, not a temporary HTTP-only tunnel. You still manage the public address, cloud security group, host firewall, and client-side `planet` distribution. Multiple Roots provide path redundancy; they do not make the Controller highly available or guarantee instant failover. Validate a single-Root client path first, then expand with the [multi-root deployment guide (Chinese)](docs/multi-root.md).
 
-```bash
-./install.sh --ip YOUR_PUBLIC_IPV4 --pull \
-  --image ghcr.io/csneer/ms-zerotier-planet:v1.1.0 \
-  --data-dir /srv/zerotier-planet
-```
-
-Source builds contact Debian, ZeroTier, and GitHub upstreams. Keep the default `DEBIAN_MIRROR=mirrors.aliyun.com` for suitable mainland China hosts; use `DEBIAN_MIRROR=default` elsewhere when the Aliyun mirror is unavailable:
-
-```bash
-DEBIAN_MIRROR=default ./install.sh --ip YOUR_PUBLIC_IPV4 --data-dir /srv/zerotier-planet
-```
-
-If dependency checks, an image pull, or a source build fails, the installer keeps `.env` and any created data directories. After fixing the cause, do not repeat initialization flags: run `./manage.sh doctor`, then `./manage.sh up`. Edit `.env` only after a deliberate backup and review.
-
-For non-interactive installation, upgrades, and acceptance checks by a coding agent, follow the [Agent installation and acceptance guide](docs/agent-install.md).
-
-> This is a private virtual network for multiple TCP/UDP services, not a temporary HTTP-only tunnel. You still manage the public address, cloud security group, and host firewall.
+> **Good fit**: self-hosted network entry points, home labs, small-team development environments, and cross-region networks where you want to own the Planet.<br>
+> **Not promised**: fixed throughput, guaranteed direct paths across carriers, or automatic Planet replacement on unverified clients.
 
 ## Maintained derivative scope
 
@@ -93,8 +99,8 @@ For non-interactive installation, upgrades, and acceptance checks by a coding ag
 - 64-bit Linux; Debian 12, Ubuntu 22.04+, or Rocky Linux 9 is recommended.
 - Docker Engine 24+ and Docker Compose v2.
 - Bash, Git, Python 3, `jq`, and GNU coreutils.
-- A stable public IPv4 address; IPv6 is optional.
-- Allow `${ZT_PORT}/udp` through host and cloud firewalls (`9994/udp` by default).
+- A stable public IPv4 address, IPv6 address, or both; every Root needs at least one reachable address family.
+- Allow `${ZT_PORT}/udp` through host and cloud firewalls (`9994/udp` by default); dual-stack hosts must allow both IPv4 and IPv6.
 
 | Default | Protocol | Purpose | Exposure |
 |---:|---|---|---|
@@ -108,7 +114,7 @@ The installer does not install Docker, change the kernel or firewall, or write D
 
 ## Install
 
-Build from your checkout (replace `203.0.113.10` with the server's real public IPv4):
+Build from your checkout (replace the example addresses with the server's real public addresses):
 
 ```bash
 git clone https://github.com/Csneer/ms-zerotier-planet.git
@@ -123,6 +129,12 @@ Optional arguments:
   --ip 203.0.113.10 \
   --ipv6 2001:db8::10 \
   --data-dir /srv/zerotier-planet
+```
+
+IPv6-only Root:
+
+```bash
+./install.sh --ipv6 2001:db8::10 --data-dir /srv/zerotier-planet
 ```
 
 Run this in a fresh checkout on the backup host, with no existing `.env`. Do not reuse an existing client or Controller directory:
@@ -164,7 +176,7 @@ Use an image published by your repository:
   --image ghcr.io/csneer/ms-zerotier-planet:latest
 ```
 
-The installer never overwrites an existing `.env` or deletes an existing data directory. A new deployment starts with `admin/password`; change it immediately. The Web UI listens on `127.0.0.1:3443` by default. Set `HTTP_HOST` to the server's ZeroTier address when that is the only listener, or add explicit comma-separated addresses through `HTTP_EXTRA_HOSTS` (for example `HTTP_EXTRA_HOSTS=172.16.100.97`). Subnets and wildcard addresses are rejected for extra listeners. The default Compose deployment does not enable HTTPS; a trusted reverse proxy is recommended when it is needed. Listeners share accounts and session storage, but browser cookies are host-specific, so switching IPs may require signing in again.
+The installer never overwrites an existing `.env` or deletes an existing data directory. A new deployment starts with `admin/password`; change it immediately. The Web UI listens on `127.0.0.1:3443` by default. Set `HTTP_HOST` to the server's ZeroTier address when that is the only listener, or add explicit comma-separated addresses through `HTTP_EXTRA_HOSTS` (for example `HTTP_EXTRA_HOSTS=198.51.100.97`). Subnets and wildcard addresses are rejected for extra listeners. The default Compose deployment does not enable HTTPS; a trusted reverse proxy is recommended when it is needed. Listeners share accounts and session storage, but browser cookies are host-specific, so switching IPs may require signing in again.
 
 ## Configuration
 
@@ -180,7 +192,7 @@ Important variables:
 - `DATA_DIR`, `ZTNCUI_STATE_DIR`, `BACKUP_DIR`: persistent state and backup paths.
 - `ZT_PROBE_STATE_DIR`: optional host ZeroTier client state, mounted read-only for probe authentication.
 - `CONTAINER_NAME`: use unique names for independent instances or cross-project adoption while retaining the stopped old container.
-- `IP_ADDR4`, `IP_ADDR6`, `ZT_PORT`: published Planet endpoints.
+- `IP_ADDR4`, `IP_ADDR6`, `ZT_PORT`: published Planet endpoints. A Root needs at least one of the two address families; set both for dual-stack.
 - `PLANET_MODE`: `generated` for the legacy single Root; `external` for a centrally signed `config/planet`.
 - `ROOT_ONLY`: `1` starts only ZeroTier, without the Web UI; defaults to `0`.
 - `CONTROLLER_ONLY`: `1` enables the guarded external Controller-only manual standby; it is not a Root and requires an active standby guard; defaults to `0`.
@@ -190,6 +202,8 @@ Important variables:
 - `HTTP_EXTRA_HOSTS`: optional comma-separated explicit IP listeners sharing the same authenticated UI; unavailable optional addresses are retried without taking down the primary listener.
 - `ZT_PROBE_ADDR`: optional local probe API, defaulting to `http://127.0.0.1:9993`.
 - `ZT_ENDPOINT_PROBES_FILE`: optional TCP endpoint probe configuration, defaulting to `/app/config/endpoint-probes.json`; only literal IP addresses and ports are accepted.
+
+Empty or omitted `IP_ADDR4` / `IP_ADDR6` fields in Compose disable that family instead of restoring saved addresses. Review hand-maintained `.env` files before upgrading and retain at least one endpoint for a Root.
 
 In single-root `generated` mode, after changing a public IP or `ZT_PORT`, run `./manage.sh upgrade`. Identity and `.c25519` signing keys remain unchanged, but clients must download and install the newly generated `planet`. In `external` mode, publish a verified signed update with `planet-bundle.sh` instead. Multi-root redundancy does not replicate the Controller, enforce a primary/backup order, or automatically stop traffic at a cloud quota.
 
@@ -204,6 +218,7 @@ The authenticated Connection Monitor reports distinct observations:
 - Probe `DIRECT`, `RELAY`, or `TCP RELAY` describes only the path from the host's local ZeroTier client to that member. It is one observation point, not a full endpoint-to-endpoint matrix.
 - Planet packet rates and UDP/TCP traffic come from ZeroTier's built-in Prometheus metrics. The page derives rates from consecutive samples.
 - The page verifies that the runtime Planet matches the downloadable file and reports Roots absent from the configured public manifest; a declared private backup Root is not misclassified as public.
+- Root topology shows declared endpoints and recent service/probe observations separately for IPv4 and IPv6. Overall Root reachability means at least one recent service path; an unobserved IPv6 path is not evidence that the client or host lacks IPv6.
 
 To enable the probe view, set `ZT_PROBE_STATE_DIR` to the host ZeroTier client's state directory. Compose mounts it read-only and queries `ZT_PROBE_ADDR`. A missing token or unavailable API is reported as “probe unavailable” without affecting the main service.
 

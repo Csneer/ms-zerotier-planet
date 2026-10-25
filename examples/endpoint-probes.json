@@ -2,8 +2,8 @@
   "probes": [
     {
       "id": "node-27-ssh",
-      "name": "172.16.100.27 SSH",
-      "address": "172.16.100.27",
+      "name": "198.51.100.27 SSH",
+      "address": "198.51.100.27",
       "port": 22,
       "timeoutMs": 1500,
       "enabled": true

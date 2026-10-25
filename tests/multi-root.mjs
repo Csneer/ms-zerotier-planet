@@ -54,8 +54,13 @@ function start(test, env) {
   containers.add(name);
   const environment = {...env};
   if (!Object.prototype.hasOwnProperty.call(environment, 'IP_ADDR4')) environment.IP_ADDR4 = '198.51.100.10';
+  // Dockerfile supplies empty address defaults. Omission at docker run does
+  // not unset them; null explicitly exercises legacy unset entrypoint calls.
+  const unset = Object.entries(environment).filter(([, v]) => v === null).map(([k]) => k);
   run('docker', ['run', '-d', '--name', name, '--network', 'none', ...test.mounts,
-    ...Object.entries(environment).flatMap(([k, v]) => ['-e', `${k}=${v}`]), image]);
+    ...(unset.length ? ['--entrypoint', '/usr/bin/env'] : []),
+    ...Object.entries(environment).filter(([, v]) => v !== null).flatMap(([k, v]) => ['-e', `${k}=${v}`]), image,
+    ...(unset.length ? [...unset.flatMap(k => ['-u', k]), '/usr/bin/tini', '--', '/usr/local/bin/entrypoint.sh'] : [])]);
   return name;
 }
 async function ready(name) {
@@ -102,8 +107,8 @@ try {
   const publicA = identity(a);
   const publicB = identity(b);
   const roots = { roots: [
-    { identity: publicA, stableEndpoints: ['198.51.100.10/9994'] },
-    { identity: publicB, stableEndpoints: ['198.51.100.11/9994'] }
+    { identity: publicA, stableEndpoints: ['198.51.100.10/9994', '2001:db8::10/9994'] },
+    { identity: publicB, stableEndpoints: ['198.51.100.11/9994', '2001:db8::11/9994'] }
   ] };
   const signer = dir('signer');
   writeJson(path.join(signer, 'moon.json'), roots);
@@ -119,6 +124,22 @@ try {
   assert.notEqual(world(signer, ['--verify-update', 'world.bin', 'world.bin'], false).status, 0);
   pass('two-root world; signed newer update accepted, old/equal timestamps rejected');
 
+  // Address-family migration keeps the existing World signing chain and root
+  // identities while allowing a Root to become IPv6-only.
+  copy(path.join(signer, 'world.bin'), path.join(signer, 'world.bin.dual'));
+  writeJson(path.join(signer, 'moon.json'), { roots: [
+    { identity: publicA, stableEndpoints: ['2001:db8::10/9994'] },
+    { identity: publicB, stableEndpoints: ['2001:db8::11/9994'] }
+  ] });
+  world(signer);
+  const v6Only = JSON.parse(world(signer, ['--inspect', 'world.bin']).stdout);
+  assert.ok(v6Only.timestamp > second.timestamp);
+  assert.deepEqual(v6Only.roots.map(root => root.stableEndpoints),
+    [['2001:db8::10/9994'], ['2001:db8::11/9994']]);
+  assert.deepEqual(v6Only.roots.map(root => root.identity).sort(), [publicA, publicB].sort());
+  world(signer, ['--verify-update', 'world.bin.dual', 'world.bin']);
+  pass('signed dual-stack to IPv6-only migration removes IPv4 endpoints and preserves identities');
+
   const badFixtures = [
     { roots: [roots.roots[0], roots.roots[0]] },
     { roots: [] },
@@ -127,12 +148,18 @@ try {
     ...['0', '65536', '999999999999', '-1', 'abc', '1234garbage'].map(port => ({ roots: [
       { ...roots.roots[0], stableEndpoints: [`198.51.100.10/${port}`] }
     ] })),
-    { roots: [{ ...roots.roots[0], stableEndpoints: ['bad-address/9994'] }] }
+    ...['::', '::1', '0:0:0:0:0:0:0:1', 'fe80::1', 'febf::1', 'ff02::1', '::ffff:0.0.0.0', '::ffff:127.0.0.1', '::ffff:224.0.0.1', '::ffff:198.51.100.10',
+      'bad-address', '2001:db8::gg', '2001:::1', 'not:ipv6',
+      '[2001:db8::1]', 'fe80::1%eth0', '2001:db8::1 garbage',
+      '2001:db8::1\0garbage', '999.1.2.3', '198.51.100.10junk'].map(host => ({
+      roots: [{ ...roots.roots[0], stableEndpoints: [`${host}/9994`] }]
+    }))
   ];
   for (let i = 0; i < badFixtures.length; i++) {
     const state = dir(`invalid-${i}`);
     writeJson(path.join(state, 'moon.json'), badFixtures[i]);
     assert.notEqual(world(state, [], false).status, 0);
+    assert.ok(!fs.existsSync(path.join(state, 'world.bin')), 'invalid input must not publish a World');
   }
   pass('duplicate/private identities, empty roots, malformed shape and endpoints rejected');
 
@@ -291,6 +318,58 @@ try {
   run('docker', ['start', c]);
   await rejected(c, 'refuses stale local Moon files');
   pass('active controller standby guard permits only the matching controller-only identity');
+
+  // Exercise the actual startup path, including persisted values and signed
+  // endpoint changes. null explicitly unsets a variable before entrypoint.
+  const families = mountState('address-families');
+  // A deterministic discovery response makes accidental IPv4 discovery fail
+  // even with --network none, rather than passing because curl cannot connect.
+  const curlShim = path.join(families.state, 'curl');
+  fs.writeFileSync(curlShim, `#!/bin/sh
+case "$*" in
+  *https://ipv4.icanhazip.com/*)
+    touch /app/config/unexpected-ipv4-discovery
+    echo 198.51.100.250
+    exit 0 ;;
+esac
+exec /usr/bin/curl "$@"
+`, {mode: 0o755});
+  families.mounts.push('-v', `${curlShim}:/usr/local/bin/curl:ro`);
+  const familyState = path.join(families.state, 'one');
+  let priorFamilyWorld;
+  let familyIdentity;
+  for (const [label, addresses, expected] of [
+    ['fresh IPv6-only with IPv4 explicitly unset', {IP_ADDR4: null, IP_ADDR6: '2001:db8::20'}, ['2001:db8::20/9994']],
+    ['explicitly unset variables retain saved IPv6-only', {IP_ADDR4: null, IP_ADDR6: null}, ['2001:db8::20/9994']],
+    ['dual-stack', {IP_ADDR4: '198.51.100.20', IP_ADDR6: '2001:db8::20'}, ['198.51.100.20/9994', '2001:db8::20/9994']],
+    ['explicit empty IPv4 removes saved endpoint', {IP_ADDR4: '', IP_ADDR6: '2001:db8::20'}, ['2001:db8::20/9994']],
+    ['explicit empty IPv6 removes saved endpoint', {IP_ADDR4: '198.51.100.20', IP_ADDR6: ''}, ['198.51.100.20/9994']]
+  ]) {
+    const instance = start(families, {PLANET_MODE: 'generated', ROOT_ONLY: '1', ...addresses});
+    await ready(instance);
+    const current = JSON.parse(world(familyState, ['--inspect', 'planet']).stdout);
+    assert.deepEqual(current.roots[0].stableEndpoints, expected, label);
+    assert.ok(!fs.existsSync(path.join(families.state, 'config/unexpected-ipv4-discovery')), label + ': must not discover IPv4');
+    if (familyIdentity) assert.equal(current.roots[0].identity, familyIdentity, label);
+    familyIdentity = current.roots[0].identity;
+    if (priorFamilyWorld && current.timestamp !== priorFamilyWorld.timestamp) {
+      assert.equal(current.id, priorFamilyWorld.id);
+      world(familyState, ['--verify-update', 'family.previous', 'planet']);
+    }
+    stop(instance);
+    copy(path.join(familyState, 'planet'), path.join(familyState, 'family.previous'));
+    priorFamilyWorld = current;
+    pass(label + ': runtime endpoints and signing chain verified');
+  }
+  for (const address of ['::', '::1', '0:0:0:0:0:0:0:1', 'fe80::1', 'febf::1', 'ff02::1', '::ffff:0.0.0.0', '::ffff:127.0.0.1', '::ffff:224.0.0.1', '::ffff:198.51.100.10']) {
+    const invalid = start(families, {PLANET_MODE: 'generated', ROOT_ONLY: '1', IP_ADDR4: '', IP_ADDR6: address});
+    await rejected(invalid, 'IP_ADDR6 is invalid');
+  }
+  pass('startup rejects IPv6 unspecified, loopback, link-local and multicast endpoints');
+  const noEndpoints = start(families, {PLANET_MODE: 'generated', ROOT_ONLY: '1', IP_ADDR4: '', IP_ADDR6: ''});
+  await rejected(noEndpoints, 'No public IPv4 or IPv6 address');
+  assert.ok(fs.readFileSync(path.join(familyState, 'planet')).equals(fs.readFileSync(path.join(familyState, 'family.previous'))));
+  pass('empty address families reject startup without modifying the signed Planet');
 
   const generated = mountState('generated');
   const g = start(generated, { PLANET_MODE: 'generated', ROOT_ONLY: '0', HTTP_EXTRA_HOSTS: '127.0.0.2' });

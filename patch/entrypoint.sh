@@ -27,9 +27,15 @@ valid_ipv4() {
         >/dev/null 2>&1
 }
 
-valid_ipv6() {
+valid_root_ipv6() {
     [[ "$1" == *:* && "$1" != *%* ]] || return 1
-    node -e 'process.exit(require("net").isIP(process.argv[1]) === 6 ? 0 : 1)' "$1" \
+    node -e '
+        const ip = process.argv[1];
+        if (require("net").isIP(ip) !== 6) process.exit(1);
+        const normalized = new URL("http://[" + ip + "]/").hostname.slice(1, -1);
+        process.exit(normalized === "::" || normalized === "::1" || /^::ffff:/i.test(normalized) ||
+            /^fe[89ab][0-9a-f]:/.test(normalized) || /^ff[0-9a-f]{2}:/.test(normalized) ? 1 : 0);
+    ' "$1" \
         >/dev/null 2>&1
 }
 
@@ -219,13 +225,20 @@ validate_port API_PORT "$API_PORT"
 write_config zerotier-one.port "$ZT_PORT"
 write_config ztncui.port "$API_PORT"
 
-if [[ "$CONTROLLER_ONLY" == 1 || "$PLANET_MODE" == external ]]; then
-    IP_ADDR4="${IP_ADDR4:-$PREVIOUS_IP_ADDR4}"
-else
-    IP_ADDR4="${IP_ADDR4:-${PREVIOUS_IP_ADDR4:-$(discover_ip https://ipv4.icanhazip.com/)}}"
-fi
+# An explicitly empty address disables that family, including when old state
+# contains it. Compose always supplies both variables, so empty/missing .env
+# fields disable a family. The image also defaults both variables to empty;
+# only callers explicitly unsetting them before entrypoint reuse saved state.
 if [[ -z "${IP_ADDR6+x}" ]]; then
     IP_ADDR6="$PREVIOUS_IP_ADDR6"
+fi
+if [[ -z "${IP_ADDR4+x}" ]]; then
+    IP_ADDR4="$PREVIOUS_IP_ADDR4"
+    # Legacy IPv4 discovery is only a last resort without any saved or
+    # configured endpoint. Never add IPv4 implicitly to an IPv6-only Root.
+    if [[ -z "$IP_ADDR4" && -z "$IP_ADDR6" && "$CONTROLLER_ONLY" == 0 && "$PLANET_MODE" == generated ]]; then
+        IP_ADDR4="$(discover_ip https://ipv4.icanhazip.com/)"
+    fi
 fi
 # Controller-only instances do not publish a Root endpoint. Root instances in
 # generated mode still need an address so the signed World has a usable path.
@@ -234,7 +247,7 @@ if [[ "$CONTROLLER_ONLY" == 0 && "$PLANET_MODE" == generated ]]; then
         || die 'No public IPv4 or IPv6 address is available; set IP_ADDR4/IP_ADDR6 explicitly'
 fi
 [[ -z "$IP_ADDR4" ]] || valid_ipv4 "$IP_ADDR4" || die "IP_ADDR4 is invalid: $IP_ADDR4"
-[[ -z "$IP_ADDR6" ]] || valid_ipv6 "$IP_ADDR6" || die "IP_ADDR6 is invalid: $IP_ADDR6"
+[[ -z "$IP_ADDR6" ]] || valid_root_ipv6 "$IP_ADDR6" || die "IP_ADDR6 is invalid: $IP_ADDR6"
 
 FRESH_IDENTITY=0
 if [[ ! -s "${ZEROTIER_PATH}/identity.secret" ]]; then

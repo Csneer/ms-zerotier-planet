@@ -32,9 +32,9 @@ async function main() {
   assert.ok(!JSON.stringify(model).includes('identity'));
   console.log('PASS: Root model distinguishes self, fresh, stale and unrecognized peers; send-only activity cannot fake health');
 
-  assert.deepEqual(uiListen.config({HTTP_EXTRA_HOSTS: '172.16.100.97,127.0.0.1'}).hosts,
-    ['127.0.0.1', '172.16.100.97']);
-  for (const env of [{HTTP_EXTRA_HOSTS: '172.16.0.0/16'}, {HTTP_HOST: '0.0.0.0', HTTP_EXTRA_HOSTS: '172.16.100.97'},
+  assert.deepEqual(uiListen.config({HTTP_EXTRA_HOSTS: '198.51.100.97,127.0.0.1'}).hosts,
+    ['127.0.0.1', '198.51.100.97']);
+  for (const env of [{HTTP_EXTRA_HOSTS: '198.51.100.0/24'}, {HTTP_HOST: '0.0.0.0', HTTP_EXTRA_HOSTS: '198.51.100.97'},
     {HTTP_HOST: 'bad.example'}, {HTTP_PORT: '123garbage'}, {HTTP_PORT: '-1'}]) {
     assert.throws(() => uiListen.config(env));
   }

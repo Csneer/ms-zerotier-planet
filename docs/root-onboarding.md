@@ -15,7 +15,7 @@
   --endpoint 198.51.100.20/9994
 ```
 
-IP 是文档示例，需要换成真实地址。支持重复 `--endpoint` 添加 IPv4/IPv6，最多 32 个；仅接受字面 `IP/端口`，不接受域名、HTTPS URL、网段或 IPv6 zone。端口必须在 1–65535；拒绝 wildcard、loopback、multicast、IPv4 全网广播和重复端点。私网/ULA 地址可用于专门设计的内网 Root，但工具不会声称这些地址公网可达，仍需操作者验证所有客户端的物理路径。
+IP 是文档示例，需要换成真实地址。支持重复 `--endpoint` 添加 IPv4/IPv6，最多 32 个；仅接受字面 `IP/端口`，不接受域名、HTTPS URL、网段或 IPv6 zone。端口必须在 1–65535；拒绝 wildcard、loopback、multicast、IPv6 link-local、IPv4-mapped IPv6、IPv4 全网广播和重复端点。私网/ULA 地址可用于专门设计的内网 Root，但工具不会声称这些地址公网可达，仍需操作者验证所有客户端的物理路径。
 
 只生成：
 

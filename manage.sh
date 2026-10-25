@@ -227,6 +227,13 @@ valid_ipv6() {
         >/dev/null 2>&1
 }
 
+valid_root_ipv6() {
+    [[ "$1" == *:* && "$1" != *%* ]] || return 1
+    require_command python3
+    python3 -c 'import ipaddress,sys; a=ipaddress.ip_address(sys.argv[1]); sys.exit(0 if a.version == 6 and a.ipv4_mapped is None and not (a.is_unspecified or a.is_loopback or a.is_link_local or a.is_multicast) else 1)' "$1" \
+        >/dev/null 2>&1
+}
+
 backup_root() {
     local root
     root=$(env_value BACKUP_DIR ./backups)
@@ -413,15 +420,15 @@ cmd_doctor() {
     [[ "$controller_only" == 0 || "$value" == 0 ]] || die 'ROOT_ONLY and CONTROLLER_ONLY are mutually exclusive'
     [[ "$controller_only" == 0 || "$planet_mode" == external ]] || die 'CONTROLLER_ONLY requires PLANET_MODE=external'
     ip=$(config_value ".services.${SERVICE}.environment.IP_ADDR4")
-    if [[ "$controller_only" == 0 ]]; then
-        [[ "$ip" != 203.0.113.10 && -n "$ip" ]] || die 'IP_ADDR4 still contains the example address'
-        valid_ipv4 "$ip" || die "IP_ADDR4 is invalid: $ip"
-    else
-        [[ -z "$ip" || "$ip" != 203.0.113.10 ]] || die 'Controller-only IP_ADDR4 must be empty or a real address'
-        [[ -z "$ip" ]] || valid_ipv4 "$ip" || die "IP_ADDR4 is invalid: $ip"
-    fi
     ip6=$(config_value ".services.${SERVICE}.environment.IP_ADDR6")
-    [[ -z "$ip6" ]] || valid_ipv6 "$ip6" || die "IP_ADDR6 is invalid: $ip6"
+    if [[ "$controller_only" == 0 ]]; then
+        [[ -n "$ip" || -n "$ip6" ]] || die 'Root requires IP_ADDR4 or IP_ADDR6'
+        [[ "$ip" != 203.0.113.10 ]] || die 'IP_ADDR4 still contains the example address'
+    else
+        [[ "$ip" != 203.0.113.10 ]] || die 'Controller-only IP_ADDR4 must be empty or a real address'
+    fi
+    [[ -z "$ip" ]] || valid_ipv4 "$ip" || die "IP_ADDR4 is invalid: $ip"
+    [[ -z "$ip6" ]] || valid_root_ipv6 "$ip6" || die "IP_ADDR6 is invalid: $ip6"
     [[ "$(config_value ".services.${SERVICE}.network_mode")" == host ]] || die 'network_mode must remain host for the optimized deployment'
     for key in ZT_PORT API_PORT; do
         value=$(config_value ".services.${SERVICE}.environment.${key}")

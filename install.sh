@@ -26,12 +26,13 @@ die() {
 usage() {
     cat <<'EOF'
 Usage:
-  ./install.sh --ip PUBLIC_IPV4 [options]
+  ./install.sh --ip PUBLIC_IPV4 [--ipv6 PUBLIC_IPV6] [options]
+  ./install.sh --ipv6 PUBLIC_IPV6 [options]
   ./install.sh                         # reuse an existing .env
 
 Options:
   --ip ADDRESS          Public IPv4 address advertised by the Planet.
-  --ipv6 ADDRESS        Optional public IPv6 address.
+  --ipv6 ADDRESS        Public IPv6 address; may be used without --ip.
   --data-dir PATH       Persistent data directory (default: ./data/zerotier).
   --image IMAGE         Image tag to build or pull.
   --pull                Pull --image instead of building locally.
@@ -55,11 +56,11 @@ valid_ipv4() {
         >/dev/null 2>&1
 }
 
-valid_ipv6() {
+valid_root_ipv6() {
     local address=$1
     [[ "$address" == *:* && "$address" != *%* ]] || return 1
     command -v python3 >/dev/null 2>&1 || die 'python3 is required to validate IP addresses'
-    python3 -c 'import ipaddress,sys; sys.exit(0 if ipaddress.ip_address(sys.argv[1]).version == 6 else 1)' "$address" \
+    python3 -c 'import ipaddress,sys; a=ipaddress.ip_address(sys.argv[1]); sys.exit(0 if a.version == 6 and a.ipv4_mapped is None and not (a.is_unspecified or a.is_loopback or a.is_link_local or a.is_multicast) else 1)' "$address" \
         >/dev/null 2>&1
 }
 
@@ -146,12 +147,12 @@ done
 if [[ -e "$ENV_FILE" ]]; then
     ((configuration_requested == 0)) || die '.env already exists; edit it explicitly instead of passing configuration options'
 else
-    if [[ -z "$public_ip" && -t 0 ]]; then
+    if [[ -z "$public_ip" && -z "$public_ipv6" && "$controller_only" != 1 && -t 0 ]]; then
         read -r -p 'Public IPv4 address: ' public_ip
     fi
-    [[ -n "$public_ip" || "$controller_only" == 1 ]] || die '--ip is required when creating .env'
+    [[ -n "$public_ip" || -n "$public_ipv6" || "$controller_only" == 1 ]] || die '--ip or --ipv6 is required when creating .env'
     [[ -z "$public_ip" ]] || valid_ipv4 "$public_ip" || die "invalid IPv4 address: $public_ip"
-    [[ -z "$public_ipv6" ]] || valid_ipv6 "$public_ipv6" || die "invalid IPv6 address: $public_ipv6"
+    [[ -z "$public_ipv6" ]] || valid_root_ipv6 "$public_ipv6" || die "invalid IPv6 address: $public_ipv6"
     case "$planet_mode" in generated|external) ;; *) die 'PLANET_MODE must be generated or external' ;; esac
     case "$root_only" in 0|1) ;; *) die 'ROOT_ONLY must be 0 or 1' ;; esac
     case "$controller_only" in 0|1) ;; *) die 'CONTROLLER_ONLY must be 0 or 1' ;; esac

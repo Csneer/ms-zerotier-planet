@@ -75,8 +75,10 @@ try {
 
   for (const [name, endpoint] of [
     ['wildcard', '0.0.0.0/9994'], ['multicast', '224.0.0.1/9994'],
+    ['ipv6-link-local', 'fe80::1/9994'], ['ipv6-link-local-upper', 'febf::1/9994'],
+    ['ipv6-wildcard', '::/9994'], ['ipv6-loopback', '::1/9994'],
     ['loopback', '127.0.0.1/9994'], ['ipv6-multicast', 'ff02::1/9994'],
-    ['mapped-wildcard', '::ffff:0.0.0.0/9994'], ['bad-port', '198.51.100.12/0'],
+    ['mapped-wildcard', '::ffff:0.0.0.0/9994'], ['mapped-loopback', '::ffff:127.0.0.1/9994'], ['mapped-multicast', '::ffff:224.0.0.1/9994'], ['mapped-public', '::ffff:198.51.100.10/9994'], ['bad-port', '198.51.100.12/0'],
     ['bad-syntax', '198.51.100.12/9994/extra'], ['zone', 'fe80::1%eth0/9994']
   ]) {
     fails(['prepare', '--image', image, '--data-dir', dir(`bad-${name}`), '--endpoint', endpoint], /Invalid endpoint/);

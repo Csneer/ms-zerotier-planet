@@ -40,7 +40,7 @@ df -h .
 ./manage.sh help
 ```
 
-云安全组和主机防火墙至少要允许 `ZT_PORT/udp`（默认 `9994/udp`）到达每个 Root。`9994/tcp` 是 ZeroTier 本地管理 API，默认不应暴露公网；Web 管理台默认监听 `127.0.0.1:3443`，若要从 ZeroTier 网段访问，应设置服务器实际 ZeroTier 地址或使用受信反向代理。
+云安全组和主机防火墙至少要允许 `ZT_PORT/udp`（默认 `9994/udp`）到达每个 Root；双栈 Root 要同时放行 IPv4 和 IPv6。`9994/tcp` 是 ZeroTier 本地管理 API，默认不应暴露公网；Web 管理台默认监听 `127.0.0.1:3443`，若要从 ZeroTier 网段访问，应设置服务器实际 ZeroTier 地址或使用受信反向代理。
 
 ## 首次安装：小云主机优先拉取镜像
 
@@ -58,7 +58,7 @@ IMAGE_REF=ghcr.io/csneer/ms-zerotier-planet:v1.1.0
   --image "$IMAGE_REF"
 ```
 
-将示例地址替换为服务器真实公网 IPv4。需要 IPv6 时增加 `--ipv6`。如果 GHCR 包是私有的，先用已有凭据执行 `docker login ghcr.io`；不要把令牌放进 `IMAGE_REF` 或 shell 历史。
+将示例地址替换为服务器真实公网 IPv4。需要 IPv6 时增加 `--ipv6 2001:db8::10`；IPv6-only Root 可以省略 `--ip`，直接使用 `./install.sh --ipv6 2001:db8::10 ...`。如果 GHCR 包是私有的，先用已有凭据执行 `docker login ghcr.io`；不要把令牌放进 `IMAGE_REF` 或 shell 历史。
 
 `install.sh` 会创建权限为 `0600` 的 `.env` 和持久化目录，随后运行 `manage.sh doctor`、启动服务并等待健康检查。它不会覆盖已有 `.env` 或清空已有数据目录。首次登录 Web 管理台使用 `admin/password`，登录后立即修改密码。
 
@@ -66,6 +66,14 @@ IMAGE_REF=ghcr.io/csneer/ms-zerotier-planet:v1.1.0
 
 ```bash
 ./install.sh --ip 203.0.113.10 --data-dir /srv/zerotier-planet
+```
+
+IPv6-only 的支持和地址族迁移修复目前属于 Unreleased；上文固定的 `v1.1.0` 镜像不包含这组改动。先用当前源码构建，或将 `IMAGE_REF` 改为已验证包含该功能的镜像。当前源码安装：
+
+```bash
+./install.sh \
+  --ipv6 2001:db8::10 \
+  --data-dir /srv/zerotier-planet
 ```
 
 源码构建会下载并编译 ZeroTier 依赖。在 2 vCPU/2 GiB 主机上若构建资源不足或上游下载不稳定，应改用已审核的预构建镜像；不要关闭 TLS 校验或把临时构建文件提交进仓库。
@@ -129,11 +137,13 @@ git pull --ff-only
 
 `IMAGE_SOURCE=pull` 时由 `ZT_IMAGE` 指定镜像；`IMAGE_SOURCE=build`（默认）从当前 checkout 构建。单 Root `generated` 模式失败时脚本可尝试旧镜像回滚；`external` 模式不会自动激活旧镜像，必须由 Agent 汇报备份、回滚标签和失败日志，交给维护者审查。
 
+IPv6-only/双栈部署需核对宿主机 IPv6 路由、对应 UDP 安全组及必要 ICMPv6。Compose 空值或省略的地址会禁用该族，不继承旧值；先确认 `.env` 再升级。实际收包与业务验证步骤见 [IPv6 Root 指南](ipv6-roots.md)。
+
 ## 常见失败与处理
 
 | 现象 | 处理方式 |
 | --- | --- |
-| `--ip is required when creating .env` | 新部署缺少真实公网 IPv4；补充 `--ip`，不要填文档保留地址。Controller-only 备用实例按其专用指南配置。 |
+| `--ip or --ipv6 is required when creating .env` | 新部署没有提供可达的公网 IPv4 或 IPv6；至少补充一个真实地址，不要填文档保留地址。Controller-only 备用实例按其专用指南配置。 |
 | `.env already exists; edit it explicitly...` | 这是保护机制。停止重复初始化，先读取并人工审查 `.env`，再按维护流程操作。 |
 | `cannot connect to the Docker daemon` 或 Compose 版本错误 | 由主机管理员安装/启动 Docker Engine 和 Compose v2；安装脚本不会静默修改主机。 |
 | 安装在依赖、拉取或构建阶段失败 | `.env` 和数据目录会保留；修复环境后运行 `./manage.sh doctor && ./manage.sh up`，不要再次给已有 `.env` 传 `--ip` 或 `--data-dir`。 |

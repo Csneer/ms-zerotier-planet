@@ -36,6 +36,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
+#include <arpa/inet.h>
 #include <nlohmann/json.hpp>
 #include <string>
 #include <vector>
@@ -198,6 +199,19 @@ int jsonToBinary() {
 			const auto slash = value.find('/');
 			if (slash == std::string::npos || slash == 0 || value.find('/', slash + 1) != std::string::npos)
 				throw std::runtime_error("endpoint must be IP/port");
+			const std::string host = value.substr(0, slash);
+			struct in6_addr parsedAddress;
+			// InetAddress sets the family even when inet_pton fails. Validate the
+			// complete host first so malformed IPv6 cannot become a signed ::.
+			// Raw IP/port syntax excludes brackets, zone IDs and embedded NULs.
+			if (host.find('\0') != std::string::npos ||
+				(inet_pton(AF_INET, host.c_str(), &parsedAddress) != 1 &&
+				 inet_pton(AF_INET6, host.c_str(), &parsedAddress) != 1))
+				throw std::runtime_error("endpoint host must be a valid IPv4 or IPv6 literal");
+			if (inet_pton(AF_INET6, host.c_str(), &parsedAddress) == 1 &&
+				(IN6_IS_ADDR_UNSPECIFIED(&parsedAddress) || IN6_IS_ADDR_LOOPBACK(&parsedAddress) ||
+				 IN6_IS_ADDR_V4MAPPED(&parsedAddress) || IN6_IS_ADDR_LINKLOCAL(&parsedAddress) || IN6_IS_ADDR_MULTICAST(&parsedAddress)))
+				throw std::runtime_error("IPv6 Root endpoint must be non-link-local unicast and not IPv4-mapped");
 			const std::string port = value.substr(slash + 1);
 			if (port.empty() || port.size() > 5 ||
 				!std::all_of(port.begin(), port.end(), [](unsigned char ch) { return std::isdigit(ch); }) ||

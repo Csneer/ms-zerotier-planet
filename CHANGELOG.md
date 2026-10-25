@@ -5,10 +5,14 @@
 ### Added
 
 - Read-only diagnostics for the known host Root drain policy, with optional minute-by-minute systemd collection and explicit missing, stale, restricted and single-path warnings in the dashboard and monitoring page.
+- First-class IPv4/IPv6 Root endpoints: fresh installs may be IPv4-only, IPv6-only or dual-stack, signed multi-root worlds retain IPv6 endpoint validation, and the Root monitor shows service/probe evidence by address family.
 
 ### Fixed
 
 - Root failover readiness now requires an observation from the service instance; an independent probe reaching a Root no longer hides an unreachable Controller upstream.
+- Clearing `IP_ADDR4` no longer restores a stale saved or auto-discovered IPv4 endpoint, so a generated Root can migrate deliberately from dual-stack to IPv6-only. Empty or omitted Compose address fields disable that family; retain every required endpoint in existing `.env` files.
+- Root panels distinguish unconfigured families, unverified local endpoints and unavailable probes, and wrap complete IPv6 paths on mobile screens.
+- Signing validates IP literals before ZeroTier address parsing, rejecting malformed IPv6 that could otherwise become an unspecified endpoint.
 
 ## [1.1.0] - 2026-10-20
 

@@ -2,32 +2,45 @@
 
 [English](README.en.md)
 
+<div align="center">
+
 [![CI](https://github.com/Csneer/ms-zerotier-planet/actions/workflows/image-build.yml/badge.svg)](https://github.com/Csneer/ms-zerotier-planet/actions/workflows/image-build.yml)
 [![Latest release](https://img.shields.io/github/v/release/Csneer/ms-zerotier-planet?display_name=tag)](https://github.com/Csneer/ms-zerotier-planet/releases)
 
-**用一台低成本云主机，搭建属于自己的 ZeroTier 内网穿透入口。**
+<h2>把 ZeroTier 的入口，放回自己手里。</h2>
 
-`ms-zerotier-planet` 把 ZeroTier Planet、Root、Controller 和 Web 管理控制台打包在一起：你的笔记本、家用 NAS、开发机和云服务器可以加入同一张私有虚拟网络，访问 SSH、RDP、HTTP、数据库等内网服务。它兼容可替换 Planet 文件的 ZeroTier 客户端，不要求改造业务，也不依赖第三方公共 Planet。各平台的接入与验证范围见下方客户端配置。
+<p><strong>自建 Planet · 可视化 Controller · IPv4 / IPv6 Root</strong></p>
 
-如果你手上只有阿里云等厂商的 **2 vCPU / 2 GiB** 级别云主机，这也是一个实际可落地的起点：个人和小团队的低至中等流量场景可以在一台主机上同时运行 Controller、Root 和 Web 控制台。真实吞吐和延迟仍取决于带宽、地域、NAT、客户端数量与业务流量；需要更高可用性时，可以再增加独立 Root。
+<p>用一台低成本云主机，把家里的 NAS、开发机和云服务器接进同一张私有网络。</p>
+
+<p><a href="#60-秒快速开始">快速开始</a> · <a href="docs/ipv6-roots.md">IPv6 Root 指南</a> · <a href="docs/agent-install.md">Agent 安装指引</a> · <a href="CHANGELOG.md">变更日志</a></p>
+
+</div>
+
+---
+
+## 一句话
+
+`ms-zerotier-planet` 将 ZeroTier Planet、Root、Controller 和 Web 管理台收进一个可维护的部署里。你保留网络入口、成员授权和虚拟地址的控制权；接入端继续使用支持替换 `planet` 文件的 ZeroTier 客户端，SSH、RDP、HTTP、数据库等服务无需改造。
 
 ```text
-你的设备/内网服务  ── ZeroTier 虚拟网络 ──  自建 Planet + Root
-                                           └─ Controller + Web 控制台
+家用设备 / 内网服务  ─────  私有 ZeroTier 网络  ─────  自建 Planet + Root
+                                                          └─ Controller + Web 管理台
 ```
 
-## 为什么选择它
+## 为什么值得从这里开始
 
-- **真正掌控入口**：Planet、identity、Network、授权和虚拟 IP 都在自己的服务器上，客户端配置由你签发和分发。
-- **一台小规格云主机即可开始**：默认单 Root 部署，安装脚本负责配置、构建、启动和健康检查。
-- **不用改业务**：接入端继续使用官方 ZeroTier 客户端，现有 SSH、Web、文件共享和数据库服务按原方式运行。
-- **可视化管理**：在 Web 中创建网络、授权成员、调整 MTU，下载 `planet`/`.moon` 并核对 SHA-256。
-- **需要时再扩容**：同一 Planet 支持多 Root 和备用 Root；签名发布、身份隔离和切换准备度都有配套工具与文档。
-- **迁移有边界**：支持核对数据布局、身份和签名链后的原地升级；不偷偷覆盖旧数据，也不把单活 Controller 包装成“自动高可用”。
+| 低成本起步 | 清晰的控制面 | 留出扩展空间 |
+| --- | --- | --- |
+| 2 vCPU / 2 GiB 云主机即可开始，适合个人和小团队的低至中等流量。 | Planet、identity、网络、成员授权与虚拟 IP 都留在自己的基础设施上。 | 单 Root 起步，需要时增加独立 Root；支持 IPv4、IPv6 和双栈。 |
 
-## 快速启动
+- **可视化**：创建网络、授权成员、调整 MTU，登录后下载 `planet` / `.moon` 并核对 SHA-256。
+- **可迁移**：升级保留 identity 和签名链；配置、备份和恢复都有明确的非破坏性边界。
+- **可观测**：首页和连接监控共享 Controller / World / Root 拓扑，区分近期回应、过期路径和不可用探针。
 
-准备一台带固定公网 IPv4 的 Linux 主机，放行 `9994/udp`，安装 Docker Engine 24+、Compose v2、Bash、Git、Python 3、`jq` 和 GNU coreutils（含 `realpath`）。以下命令需要 Docker 访问权及数据目录写入权；源码目录和运行数据建议分开：
+## 60 秒快速开始
+
+准备一台带固定公网 IPv4 或全球单播 IPv6 的 Linux 主机，放行对应地址族的 `9994/udp`，并安装 Docker Engine 24+、Compose v2、Bash、Git、Python 3、`jq` 与 GNU coreutils。
 
 ```bash
 git clone https://github.com/Csneer/ms-zerotier-planet.git
@@ -35,40 +48,33 @@ cd ms-zerotier-planet
 ./install.sh --ip YOUR_PUBLIC_IPV4 --data-dir /srv/zerotier-planet
 ```
 
-管理台默认只监听云服务器自己的 `127.0.0.1`。如果你从自己的电脑管理，在自己的电脑上保持 SSH 隧道：
+IPv6-only Root 或双栈 Root：
+
+```bash
+# IPv6-only
+./install.sh --ipv6 YOUR_PUBLIC_IPV6 --data-dir /srv/zerotier-planet
+
+# dual-stack
+./install.sh --ip YOUR_PUBLIC_IPV4 --ipv6 YOUR_PUBLIC_IPV6 \
+  --data-dir /srv/zerotier-planet
+```
+
+安装后通过 SSH 隧道打开管理台：
 
 ```bash
 ssh -N -L 3443:127.0.0.1:3443 user@server
 ```
 
-然后在自己的浏览器访问 `http://127.0.0.1:3443`，默认登录 `admin/password`，首次登录立即修改密码。也可以在确认安全组和访问控制后，将 `HTTP_HOST` 或 `HTTP_EXTRA_HOSTS` 配置为服务器的 ZeroTier 地址。
+访问 `http://127.0.0.1:3443`，使用 `admin/password` 登录后立即修改密码。然后在 `Networks` 创建网络，在 `Downloads` 下载 `planet`，让客户端加入网络，再回到管理台授权成员。
 
-接下来：
+> **当前源码提示**：IPv6-only 安装和地址族迁移属于 Unreleased 改进，`v1.1.0` 镜像尚不包含。请使用当前 checkout 构建，或使用已验证包含这些改动的镜像；主机、防火墙和迁移验收见 [IPv6 Root 指南](docs/ipv6-roots.md)。
 
-1. 在 `Networks` 创建虚拟网络。
-2. 在 `Downloads` 下载 `planet`，把它安装到每台客户端的 ZeroTier 数据目录。
-3. 启动客户端、加入网络，并在 Web 控制台授权成员。
-4. 用设备的 ZeroTier 地址访问你的 SSH、Web 或其他内网服务。
+## 项目边界
 
-默认安装从当前 checkout 构建镜像；如果你更关心拉取速度，也可以使用自己发布到 GHCR 的镜像：
+这是一个可以承载多种 TCP/UDP 服务的私有虚拟网络，不是只转发 HTTP 的临时隧道。公网地址、云安全组、主机防火墙和客户端 `planet` 分发仍由部署者负责；多 Root 提供路径冗余，但不等于 Controller 高可用或秒级切换。先从单 Root 验证真实客户端路径，再按 [多 Root 与切换方案](docs/multi-root.md) 扩容。
 
-```bash
-./install.sh --ip YOUR_PUBLIC_IPV4 --pull \
-  --image ghcr.io/csneer/ms-zerotier-planet:v1.1.0 \
-  --data-dir /srv/zerotier-planet
-```
-
-源码构建会访问 Debian、ZeroTier 和 GitHub 上游。国内主机可以保留默认的 `DEBIAN_MIRROR=mirrors.aliyun.com`；其他地域或无法访问阿里云镜像时，使用 `DEBIAN_MIRROR=default`：
-
-```bash
-DEBIAN_MIRROR=default ./install.sh --ip YOUR_PUBLIC_IPV4 --data-dir /srv/zerotier-planet
-```
-
-如果首次安装在依赖检查、镜像拉取或构建阶段失败，脚本会保留 `.env` 和已创建的数据目录。修复原因后不要再次带初始化参数，先执行 `./manage.sh doctor`，再执行 `./manage.sh up`；只有确认要重建配置时才备份并人工编辑 `.env`。
-
-需要由编码 Agent 或自动化流程执行安装、升级和验收时，请按 [Agent 安装与验收指引](docs/agent-install.md) 操作。
-
-> 这是私有虚拟网络方案，不是只转发 HTTP 的临时隧道。它适合需要访问多种 TCP/UDP 内网服务的场景；公网地址、云安全组和主机防火墙仍由你自己负责。
+> **适合**：自托管内网入口、家庭实验室、小团队开发环境、需要自己掌握 Planet 的跨地域网络。<br>
+> **不承诺**：固定吞吐、跨运营商必然直连，或在未验收的客户端上自动完成 Planet 替换。
 
 ## 二开维护内容
 
@@ -95,8 +101,8 @@ DEBIAN_MIRROR=default ./install.sh --ip YOUR_PUBLIC_IPV4 --data-dir /srv/zerotie
 - Docker Engine 24+。
 - Docker Compose v2。
 - Bash、Git、Python 3、`jq`、`coreutils`。
-- 固定或可控的公网 IPv4；IPv6 可选。
-- 云安全组和主机防火墙至少放行 `${ZT_PORT}/udp`，默认 `9994/udp`。
+- 固定或可控的公网 IPv4、IPv6，或两者同时存在；Root 至少需要一个地址族。
+- 云安全组和主机防火墙至少放行 `${ZT_PORT}/udp`，默认 `9994/udp`；双栈主机要同时放行 IPv4 和 IPv6。
 
 端口用途：
 
@@ -112,7 +118,7 @@ DEBIAN_MIRROR=default ./install.sh --ip YOUR_PUBLIC_IPV4 --data-dir /srv/zerotie
 
 ## 首次安装
 
-从源码本地构建（将示例地址 `203.0.113.10` 换成服务器真实公网 IPv4）：
+从源码本地构建（将示例地址换成服务器真实公网地址）：
 
 ```bash
 git clone https://github.com/Csneer/ms-zerotier-planet.git
@@ -127,6 +133,12 @@ cd ms-zerotier-planet
   --ip 203.0.113.10 \
   --ipv6 2001:db8::10 \
   --data-dir /srv/zerotier-planet
+```
+
+只有 IPv6 的 Root：
+
+```bash
+./install.sh --ipv6 2001:db8::10 --data-dir /srv/zerotier-planet
 ```
 
 以下在备用机的新 checkout 中执行（尚无 `.env`）。不要复用已有客户端或 Controller 数据目录：
@@ -181,7 +193,7 @@ Web 默认只监听本机：
 http://127.0.0.1:3443
 ```
 
-如果需要从 ZeroTier 网络访问，把 `HTTP_HOST` 设置为服务器对应的 ZeroTier 地址，例如 `172.16.100.97`。需要同时监听多个明确地址时使用逗号分隔的 `HTTP_EXTRA_HOSTS`，例如 `HTTP_HOST=127.0.0.1`、`HTTP_EXTRA_HOSTS=172.16.100.97`；它不接受网段或 `0.0.0.0`。默认 Compose 未启用 HTTPS；需要 HTTPS 时推荐在受信网络中增加反向代理。
+如果需要从 ZeroTier 网络访问，把 `HTTP_HOST` 设置为服务器对应的 ZeroTier 地址，例如 `198.51.100.97`。需要同时监听多个明确地址时使用逗号分隔的 `HTTP_EXTRA_HOSTS`，例如 `HTTP_HOST=127.0.0.1`、`HTTP_EXTRA_HOSTS=198.51.100.97`；它不接受网段或 `0.0.0.0`。默认 Compose 未启用 HTTPS；需要 HTTPS 时推荐在受信网络中增加反向代理。
 
 ## 配置
 
@@ -201,7 +213,7 @@ http://127.0.0.1:3443
 | `ZT_PROBE_STATE_DIR` | 可选本机 ZeroTier 客户端状态目录，只读挂载供连接监控读取 token |
 | `BACKUP_DIR` | 校验备份的保存目录 |
 | `CONTAINER_NAME` | 容器名；同机多实例或保留停机旧容器的跨工程接管需避免重名 |
-| `IP_ADDR4` / `IP_ADDR6` | planet 对外发布的稳定地址 |
+| `IP_ADDR4` / `IP_ADDR6` | Planet 对外发布的稳定 IPv4/IPv6 地址；Root 至少填写一个，双栈可同时填写 |
 | `PLANET_MODE` | `generated`：原单 Root 自动生成；`external`：使用 `config/planet` 的统一签名文件 |
 | `ROOT_ONLY` | `1`：只启动 Root，不开 Web UI；默认 `0` |
 | `CONTROLLER_ONLY` | `1`：external 模式下的人工 Controller 备用；必须有 active standby guard，不承担 Root；默认 `0` |
@@ -212,6 +224,8 @@ http://127.0.0.1:3443
 | `HTTP_EXTRA_HOSTS` | 额外的明确监听 IP，逗号分隔；缺失的局域网 IP 会重试，不会拖停主监听 |
 | `ZT_PROBE_ADDR` | 可选探针的本地 ZeroTier API，默认 `http://127.0.0.1:9993` |
 | `ZT_ENDPOINT_PROBES_FILE` | 可选端点 TCP 探针配置，默认 `/app/config/endpoint-probes.json`；仅检查明确 IP 和端口 |
+
+Compose 中空值或省略的 `IP_ADDR4` / `IP_ADDR6` 会禁用对应族，不会恢复保存的旧地址。升级前核对手工维护的 `.env`；Root 至少保留一个端点。
 
 单 Root `generated` 模式下，修改 `IP_ADDR4`、`IP_ADDR6` 或 `ZT_PORT` 后执行 `./manage.sh upgrade`。容器会保留原 identity 和 `.c25519` 签名密钥，生成时间戳更高的新 planet；客户端仍需重新下载并替换新的 `planet` 文件。多 Root `external` 模式必须统一签名发布，不能靠改环境变量重新生成，见[部署步骤](docs/multi-root.md)。
 
@@ -226,6 +240,7 @@ http://127.0.0.1:3443
 - 探针 `DIRECT` / `RELAY` / `TCP RELAY`：服务器本机 ZeroTier 客户端到该成员的当前路径。探针只是一个观测点，不是所有终端的两两连接矩阵。
 - Planet 包速率与 UDP/TCP 流量：来自 ZeroTier 内置 Prometheus 指标，页面用相邻采样计算速率。
 - Planet 文件一致性与未声明 Root 数量：运行文件应与下载文件一致；按配置的公开 Root 清单识别异常上游，正常备用 Root 不会被误报为公共 Root。
+- Root 拓扑会分别显示 IPv4 与 IPv6 的声明端点、服务实例近期收包和探针观测；总体 Root 可达只表示至少一条服务端路径近期可用，不能把未观测的 IPv6 解释成客户端或云主机不支持 IPv6。
 
 若要启用探针视角，把主机 ZeroTier 客户端的数据目录配置为 `ZT_PROBE_STATE_DIR`。Compose 会只读挂载该目录，并通过 `ZT_PROBE_ADDR` 查询本机 API。目录为空或 API 不可达时，监控页会显示“探针不可用”，不会影响主服务。
 

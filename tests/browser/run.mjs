@@ -2,10 +2,14 @@
 import assert from 'node:assert/strict';
 import {execFileSync} from 'node:child_process';
 import {randomUUID} from 'node:crypto';
+import {mkdir} from 'node:fs/promises';
+import {join} from 'node:path';
 import {chromium} from 'playwright';
 import {verifyHandlers} from './handlers.mjs';
 const image = process.argv[2] || 'zerotier-planet:ci-test';
 if (image.startsWith('-') || image.includes('://')) throw new Error('Expected a local Docker image tag');
+// Documentation-only IPv6: test configuration/rendering without a public peer.
+const rootIPv6 = '2001:db8:abcd:1234:5678:90ab:cdef:1234';
 const name = 'planet-browser-' + randomUUID();
 const network = name + '-net';
 const docker = (...args) => execFileSync('docker', args, {encoding:'utf8', timeout:60000, stdio:['ignore','pipe','pipe']}).trim();
@@ -14,7 +18,7 @@ const pass = text => console.log('PASS: ' + text);
 try {
   docker('network','create',network); createdNetwork = true;
   docker('create','--pull','never','--cpus','2','--memory','2g','--memory-swap','2g','--pids-limit','256','--name',name,'--network',network,'-p','127.0.0.1::3443',
-    '-e','IP_ADDR4=198.51.100.10','-e','HTTP_HOST=0.0.0.0',
+    '-e','IP_ADDR4=','-e','IP_ADDR6='+rootIPv6,'-e','HTTP_HOST=0.0.0.0',
     '-v','/var/lib/zerotier-one','-v','/app/config','-v','/app/dist','-v','/var/lib/ztncui',image);
   createdContainer = true; docker('start',name);
   await verifyHandlers(docker('exec',name,'cat','/opt/ztncui/src/controllers/networkController.js'));
@@ -31,6 +35,27 @@ try {
   const context = await browser.newContext({viewport:{width:1365,height:900}});
   const page = await context.newPage(); page.setDefaultTimeout(15000);
   const errors=[]; page.on('pageerror',error=>errors.push(error.message));
+  const overflowDir = process.env.PLANET_BROWSER_SCREENSHOT_DIR || '/tmp';
+  async function assertNoPageOverflow(label) {
+    const report = await page.evaluate(() => {
+      const width = window.innerWidth;
+      const nodes = [...document.querySelectorAll('body *')].map(node => {
+        const rect = node.getBoundingClientRect();
+        return {node, rect, right: rect.right, left: rect.left};
+      }).filter(item => item.rect.width > 0 && (item.right > width + 1 || item.left < -1))
+        .sort((a, b) => Math.max(b.right - width, -b.left) - Math.max(a.right - width, -a.left))
+        .slice(0, 12)
+        .map(item => ({tag: item.node.tagName, id: item.node.id, className: item.node.className,
+          left: Math.round(item.left), right: Math.round(item.right), width: Math.round(item.rect.width),
+          text: (item.node.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 100)}));
+      return {innerWidth: width, scrollWidth: document.documentElement.scrollWidth, nodes};
+    });
+    if (report.scrollWidth > report.innerWidth) {
+      const file = join(overflowDir, `overflow-${randomUUID()}.png`);
+      try { await page.screenshot({path: file, fullPage: true}); } catch {}
+      assert.fail(`${label} page overflow: ${JSON.stringify({...report, screenshot: file})}`);
+    }
+  }
   await page.goto(base+'/login?lang=en');
   await page.locator('#username').fill('admin'); await page.locator('#password').fill('password');
   await page.locator('button[type=submit]').click();
@@ -40,6 +65,47 @@ try {
     await page.locator('button[type=submit]').click();
   }
   await page.goto(base+'/controller');
+  const screenshotDir = process.env.PLANET_BROWSER_SCREENSHOT_DIR;
+  if (screenshotDir) await mkdir(screenshotDir, {recursive: true});
+  for (const width of [360, 390, 768, 1440]) {
+    await page.setViewportSize({width, height: 900});
+    for (const route of ['/controller', '/controller/monitor']) {
+      await page.goto(base + route + '?lang=en');
+      for (const lang of ['en', 'zh-CN']) {
+        if (lang === 'zh-CN') {
+          // Exercise the actual navigation and persisted language preference.
+          if (await page.locator('.navbar-toggle').isVisible()) {
+            await page.locator('.navbar-toggle').click();
+            await page.locator('#appNavigation.in').waitFor({state:'visible'});
+          }
+          await page.locator('.language-menu a').click();
+          await page.waitForURL('**?lang=zh-CN');
+        }
+        assert.equal(new URL(page.url()).pathname, route);
+        assert.equal(await page.locator('html').getAttribute('lang'), lang);
+        const panel = page.locator('#root-topology');
+        await panel.waitFor({state:'visible'});
+        const endpoint = panel.locator('.monitor-endpoint-row code');
+        assert.deepEqual(await endpoint.allTextContents(), [rootIPv6+'/9994'], 'full IPv6 stable endpoint must survive rendering');
+        const text = await panel.innerText();
+        assert.ok(text.includes(lang === 'en' ? 'NO STABLE ENDPOINT' : '未配置稳定端点'));
+        assert.ok(text.includes(lang === 'en' ? 'EXTERNAL PATH UNVERIFIED' : '外部可达性未验证'));
+        assert.ok(text.includes(lang === 'en' ? 'does not prove public IPv4 / IPv6 reachability' : '本机运行不证明公网 IPv4 / IPv6 可达'));
+        await assertNoPageOverflow(`${route} ${lang} at ${width}px`);
+        assert.ok(await panel.locator('.monitor-root-item').evaluateAll(cards => cards.every(card => {
+          const bounds = card.getBoundingClientRect();
+          return card.scrollWidth <= card.clientWidth && [...card.querySelectorAll('code, .path-badge')].every(node => {
+            const rect = node.getBoundingClientRect();
+            return rect.left >= bounds.left && rect.right <= bounds.right + 1 && node.scrollWidth <= node.clientWidth + 1;
+          });
+        })), `${route} ${lang} at ${width}px must contain complete Root content`);
+        if (screenshotDir) await page.screenshot({path:join(screenshotDir, `root-${route.endsWith('monitor') ? 'monitor' : 'home'}-${lang}-${width}.png`), fullPage:true});
+      }
+    }
+  }
+  pass('IPv6-only generated Root: full endpoints, neutral unconfigured IPv4, local reachability caveat, bilingual home/monitor at 360/390/768/1440px');
+  await page.setViewportSize({width:1365,height:900});
+  await page.goto(base+'/controller?lang=en');
   await page.goto(base+'/controller/network/create'); await page.locator('#name').fill('Browser regression');
   await Promise.all([page.waitForURL(/\/network\/[a-f0-9]{16}$/),page.locator('button[type=submit]').click()]);
   const detail = page.url(); const nwid = detail.split('/').at(-1);
