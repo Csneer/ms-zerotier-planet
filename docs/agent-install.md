@@ -50,7 +50,7 @@ df -h .
 git clone https://github.com/Csneer/zerotier-planet-ms.git /opt/ms-zerotier-planet
 cd /opt/ms-zerotier-planet
 
-IMAGE_REF=ghcr.io/csneer/ms-zerotier-planet:v1.1.0
+IMAGE_REF=ghcr.io/csneer/ms-zerotier-planet:v1.2.0
 ./install.sh \
   --ip 203.0.113.10 \
   --data-dir /srv/zerotier-planet \
@@ -68,7 +68,7 @@ IMAGE_REF=ghcr.io/csneer/ms-zerotier-planet:v1.1.0
 ./install.sh --ip 203.0.113.10 --data-dir /srv/zerotier-planet
 ```
 
-IPv6-only 的支持和地址族迁移修复目前属于 Unreleased；上文固定的 `v1.1.0` 镜像不包含这组改动。先用当前源码构建，或将 `IMAGE_REF` 改为已验证包含该功能的镜像。当前源码安装：
+IPv6-only 支持和地址族迁移修复已包含在固定的 `v1.2.0` 镜像中；如需审查该版本之后的未发布修改，再使用当前源码构建。当前源码安装：
 
 ```bash
 ./install.sh \

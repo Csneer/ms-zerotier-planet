@@ -67,7 +67,7 @@ ssh -N -L 3443:127.0.0.1:3443 user@server
 
 Visit `http://127.0.0.1:3443`, sign in with `admin/password`, and change the password immediately. Create a network in `Networks`, download `planet` from `Downloads`, join the network from each client, then authorize its member in the console.
 
-> **Current source note:** IPv6-only installation and address-family migration are Unreleased improvements; the `v1.1.0` image does not include them. Build the current checkout or use a verified image containing these changes. See the [IPv6 Root guide (Chinese)](docs/ipv6-roots.md) for host, firewall, and migration checks.
+> **Version note:** IPv6-only installation and address-family migration are included in the `v1.2.0` image. Build the current checkout when reviewing changes after this release. See the [IPv6 Root guide (Chinese)](docs/ipv6-roots.md) for host, firewall, and migration checks.
 
 ## Clear boundaries
 
@@ -329,11 +329,11 @@ Validate mobile Planet import, network membership, and end-to-end access on a te
 
 ## Versions and image publishing
 
-Project releases use independent SemVer tags (`vX.Y.Z`). The current release is `v1.1.0`, with image `ghcr.io/csneer/ms-zerotier-planet:v1.1.0`. These are distinct from runtime versions such as ZeroTier `1.16.2`. See the [changelog](CHANGELOG.md) and [release procedure (Chinese)](docs/releasing.md) for repository identity setup, tagging, and GitHub Releases.
+Project releases use independent SemVer tags (`vX.Y.Z`). The current release is `v1.2.0`, with image `ghcr.io/csneer/ms-zerotier-planet:v1.2.0`. These are distinct from runtime versions such as ZeroTier `1.16.2`. See the [changelog](CHANGELOG.md) and [release procedure (Chinese)](docs/releasing.md) for repository identity setup, tagging, and GitHub Releases.
 
 The [image workflow](.github/workflows/image-build.yml) validates scripts, Compose, and container regressions before building `linux/amd64` and `linux/arm64` images:
 
-- A release tag `vX.Y.Z` selects `ZT_VERSION` from that tag's `.env.example` (`1.16.2` for `v1.1.0`) and publishes only the project version image, leaving rolling tags unchanged.
+- A release tag `vX.Y.Z` selects `ZT_VERSION` from that tag's `.env.example` (`1.16.2` for `v1.2.0`) and publishes only the project version image, leaving rolling tags unchanged.
 - Pushes to `main`/`master`, weekly builds, and ordinary manual builds continue to track the latest stable ZeroTier release (or a manually specified version), publishing `latest`, ZeroTier version, and Git SHA tags.
 - Record and deploy the image digest when exact image contents must remain fixed. A version tag does not mean every build dependency is locked.
 
