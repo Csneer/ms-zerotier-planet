@@ -111,7 +111,7 @@ block net_content
           +app_icon('refresh')
           |  #{t('common.refresh')}
 
-    details.scope-disclosure
+    details.scope-disclosure(data-dialog)
       summary= t('ux.scope_details')
       p.monitor-footnote= t('network.planet_scope_note')
     if bridgeMemberCount
@@ -145,6 +145,10 @@ block net_content
           if (state === 'failed') failedFields.add(field);
           else failedFields.delete(field);
           $(field).attr('aria-invalid', state === 'failed' ? 'true' : 'false');
+          var memberId = field.name || field.value;
+          var property = $(field).hasClass('authCheck') ? 'authorized' : $(field).hasClass('bridgeCheck') ? 'activeBridge' : 'name';
+          var detail = $('[data-member-id="' + memberId + '"][data-member-live="' + property + '"]');
+          detail.text(property === 'name' ? field.value || detail.attr('data-empty') : detail.attr(field.checked ? 'data-enabled' : 'data-disabled'));
           updateSaveStatus();
         }
         $('.authCheck, .bridgeCheck').on('change', function() {
@@ -207,7 +211,7 @@ block net_content
               tr(data-list-row data-search=[member.id].concat(member.ipAssignments || []).join(' '))
                 td
                   if isPlanetReachable
-                    span.member-status.is-online
+                    span.member-status.is-online(tabindex='0' data-tooltip=t('network.planet_scope_note'))
                       span.status-dot
                       | #{t('network.planet_reachable_short')}
                     if peer.version
@@ -217,12 +221,56 @@ block net_content
                       span.status-dot
                       | #{t('network.controller')}
                   else
-                    span.member-status.is-offline
+                    span.member-status.is-unknown(tabindex='0' data-tooltip=t('member.no_observed_path'))
                       span.status-dot
                       | #{t('network.planet_unreachable_short')}
                 td
                   input.form-control.member-name-input(type='text' name=member.id value=member.name placeholder=t('member.name') aria-label=t('member.name'))
-                  a.member-id(href=memberUrl)= member.id
+                  details.member-quick-info(id='member-info-' + member.id data-dialog data-dialog-title=t('member.detail_title'))
+                    summary.member-id(data-tooltip=t('member.quick_hint'))= member.id
+                    .member-quick-body
+                      .detail-grid
+                        .detail-item
+                          span= t('member.name')
+                          strong(data-member-id=member.id data-member-live='name' data-empty=t('common.none'))= member.name || t('common.none')
+                        .detail-item
+                          span= t('member.address')
+                          code= member.id
+                        .detail-item
+                          span= t('network.authorized')
+                          strong(data-member-id=member.id data-member-live='authorized' data-enabled=t('common.enabled') data-disabled=t('common.disabled'))= member.authorized ? t('common.enabled') : t('common.disabled')
+                        .detail-item
+                          span= t('network.bridge')
+                          strong(data-member-id=member.id data-member-live='activeBridge' data-enabled=t('common.enabled') data-disabled=t('common.disabled'))= member.activeBridge ? t('common.enabled') : t('common.disabled')
+                        .detail-item
+                          span= t('member.client_version')
+                          strong= peer && peer.version && peer.version !== '-1.-1.-1' ? peer.version : t('common.unknown')
+                        .detail-item
+                          span= t('member.observed_latency')
+                          strong= paths.length && peer && typeof peer.latency === 'number' && Number.isFinite(peer.latency) && peer.latency >= 0 ? peer.latency + ' ms' : t('common.unknown')
+                        .detail-item.detail-item-wide
+                          span= t('network.ip_assignment')
+                          if member.ipAssignments && member.ipAssignments.length
+                            .ip-list
+                              each ipAddress in member.ipAssignments
+                                code= ipAddress
+                          else
+                            strong= t('network.no_ip')
+                        .detail-item.detail-item-wide
+                          span= t('member.observed_paths')
+                          if paths.length
+                            .ip-list
+                              each path in paths
+                                code= path.address || t('common.unknown')
+                          else
+                            strong= t('member.no_observed_path')
+                        .detail-item
+                          span= t('member.path_activity')
+                          strong= lastActivityMs !== null ? formatAge(lastActivityMs) : t('common.unknown')
+                      p.monitor-footnote= t('network.planet_scope_note')
+                      .form-actions
+                        a.btn.btn-primary(href=memberUrl + '/ipAssignments')= t('network.edit_ip')
+                        a.btn.btn-default(href=memberUrl)= t('network.member_detail')
                 td.member-ip-column
                   if member.ipAssignments && member.ipAssignments.length
                     .ip-list
@@ -242,14 +290,14 @@ block net_content
                 td.member-connection-column
                   if preferredPath && preferredPath.address
                     code.connection-address= preferredPath.address
-                    if peer && Number(peer.latency) >= 0
+                    if peer && typeof peer.latency === 'number' && Number.isFinite(peer.latency) && peer.latency >= 0
                       small.connection-latency #{peer.latency} ms
                     if lastActivityMs !== null
                       small.connection-latency= t('network.last_activity', {age: formatAge(lastActivityMs)})
                   else
                     span.muted-text= t('common.none')
                 td.text-right.member-actions
-                  a.btn.btn-default.btn-sm(href=memberUrl title=t('network.member_detail'))
+                  a.btn.btn-default.btn-sm(href='#member-info-' + member.id title=t('network.member_detail') aria-label=t('network.member_detail'))
                     span.glyphicon.glyphicon-list-alt(aria-hidden='true')
                   a.btn.btn-link.btn-sm.danger-link(href=memberUrl + '/delete' title=t('network.delete_member'))
                     span.glyphicon.glyphicon-trash(aria-hidden='true')
@@ -264,7 +312,7 @@ block net_content
         button.btn.btn-default.btn-sm(type='button' data-list-prev)= t('ux.previous')
         button.btn.btn-default.btn-sm(type='button' data-list-next)= t('ux.next')
 
-  details#network-settings.surface-card.config-section.monitor-disclosure
+  details#network-settings.surface-card.config-section.monitor-disclosure(data-dialog)
     summary= t('network.configuration')
     .config-grid
       a.config-card(href=nwurl + '/private')
@@ -324,7 +372,7 @@ block net_content
           small= t('network.mtu_desc')
         span.glyphicon.glyphicon-chevron-right.config-arrow
 
-  details.surface-card.advanced-details
+  details.surface-card.advanced-details(data-dialog)
     summary
       span.glyphicon.glyphicon-console(aria-hidden='true')
       span= t('common.advanced_data')

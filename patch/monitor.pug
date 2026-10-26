@@ -17,10 +17,12 @@ block content
       .alert.alert-danger.monitor-alert
         strong= t('monitor.planet_problem')
         p= t('monitor.planet_problem_desc', {count: monitor.service.unexpectedPlanetCount === null ? '—' : monitor.service.unexpectedPlanetCount})
+        a.btn.btn-default.btn-sm(href='#planet-guidance' data-dialog-open='planet-guidance')= t('guide.actions')
     if monitor.summary.bridgeMemberCount
       .alert.alert-warning.monitor-alert
         strong= t('monitor.bridge_warning', {count: monitor.summary.bridgeMemberCount})
         p= t('monitor.bridge_warning_desc')
+        a.btn.btn-default.btn-sm(href='#bridge-guidance' data-dialog-open='bridge-guidance')= t('guide.actions')
 
     if monitor.communication
       section#network-health.surface-card.table-card.monitor-network-card(data-list data-list-summary=t('ux.list_count'))
@@ -85,9 +87,9 @@ block content
                       span.muted-text= t('monitor.probe_unavailable')
                   td
                     if network.oldVersionCount
-                      span.risk-badge #{network.oldVersionCount} #{t('monitor.communication_old')}
+                      a.risk-badge(href='#version-guidance' data-dialog-open='version-guidance') #{network.oldVersionCount} #{t('monitor.communication_old')}
                     if network.bridgeCount
-                      span.risk-badge #{network.bridgeCount} #{t('monitor.communication_bridge')}
+                      a.risk-badge(href='#bridge-guidance' data-dialog-open='bridge-guidance') #{network.bridgeCount} #{t('monitor.communication_bridge')}
                     if !network.oldVersionCount && !network.bridgeCount
                       span.muted-text= t('common.none')
               else
@@ -99,7 +101,7 @@ block content
           .list-pagination-actions
             button.btn.btn-default.btn-sm(type='button' data-list-prev)= t('ux.previous')
             button.btn.btn-default.btn-sm(type='button' data-list-next)= t('ux.next')
-        details.scope-disclosure
+        details.scope-disclosure(data-dialog)
           summary= t('ux.scope_details')
           p.monitor-footnote= t('monitor.communication_scope_note')
 
@@ -133,17 +135,84 @@ block content
             each member in monitor.members
               tr(data-list-row data-search=[member.name, member.id, member.planet.path, member.probe.path].concat(member.networks.map(network => network.name + ' ' + network.nwid)).join(' '))
                 td
-                  strong= member.name || member.id
+                  details.member-quick-info(id='observed-member-' + member.id data-dialog data-dialog-title=t('member.detail_title'))
+                    summary(data-tooltip=t('member.quick_hint'))
+                      strong= member.name || member.id
+                    .detail-grid
+                      .detail-item
+                        span= t('member.address')
+                        code= member.id
+                      .detail-item
+                        span= t('member.client_version')
+                        strong= member.version || t('common.unknown')
+                    h3= t('monitor.planet_view')
+                    .detail-grid
+                      .detail-item.detail-item-wide
+                        span= t('member.observed_paths')
+                        if member.planet.reachable && member.planet.path
+                          code= member.planet.path
+                        else
+                          strong= t('member.no_observed_path')
+                      .detail-item
+                        span= t('member.observed_latency')
+                        strong= Number.isFinite(member.planet.latency) && member.planet.latency >= 0 ? member.planet.latency + ' ms' : t('common.unknown')
+                      .detail-item
+                        span= t('member.path_activity')
+                        strong= Number.isFinite(member.planet.lastActivityMs) && member.planet.lastActivityMs >= 0 ? t('monitor.activity_ago', {age: formatAge(member.planet.lastActivityMs)}) : t('common.unknown')
+                    h3= t('monitor.probe_view')
+                    p
+                      case member.probe.state
+                        when 'direct'
+                          span.path-badge.is-direct DIRECT
+                        when 'relay'
+                          span.path-badge.is-relay RELAY
+                        when 'tcp_relay'
+                          span.path-badge.is-relay TCP RELAY
+                        when 'self'
+                          span.path-badge.is-self= t('monitor.probe_self')
+                        when 'unknown'
+                          span.path-badge.is-unknown= t('monitor.unknown')
+                        default
+                          span.path-badge.is-unknown= t('monitor.unavailable')
+                    .detail-grid
+                      .detail-item.detail-item-wide
+                        span= t('member.observed_paths')
+                        if member.probe.path
+                          code= member.probe.path
+                        else
+                          strong= t('member.no_observed_path')
+                      .detail-item
+                        span= t('member.observed_latency')
+                        strong= Number.isFinite(member.probe.latency) && member.probe.latency >= 0 ? member.probe.latency + ' ms' : t('common.unknown')
+                    p.monitor-footnote= t('monitor.scope_note')
+                    h3= t('monitor.networks')
+                    each network in member.networks
+                      section
+                        h4= network.name || network.nwid
+                        code= network.nwid
+                        .detail-grid
+                          .detail-item
+                            span= t('network.authorized')
+                            strong= network.authorized === true ? t('common.enabled') : network.authorized === false ? t('common.disabled') : t('common.unknown')
+                          .detail-item
+                            span= t('network.bridge')
+                            strong= network.activeBridge === true ? t('common.enabled') : network.activeBridge === false ? t('common.disabled') : t('common.unknown')
+                        .form-actions
+                          a.btn.btn-default(href='/controller/network/' + network.nwid + '/member/' + member.id)= t('network.member_detail')
+                          a.btn.btn-default(href='/controller/network/' + network.nwid + '/member/' + member.id + '/ipAssignments')= t('network.edit_ip')
                   if member.name
                     code.monitor-member-id= member.id
-                  small.member-version= member.version ? 'v' + member.version : t('common.none')
+                  small.member-version= member.version ? 'v' + member.version : t('common.unknown')
                 td
                   each network in member.networks
                     a.monitor-network-link(href='/controller/network/' + network.nwid)= network.name || network.nwid
                 td
                   if member.planet.reachable
                     span.path-badge.is-direct= t('monitor.to_planet_direct')
-                    small.monitor-path-meta #{member.planet.latency} ms · #{t('monitor.activity_ago', {age: formatAge(member.planet.lastActivityMs)})}
+                    small.monitor-path-meta
+                      | #{Number.isFinite(member.planet.latency) && member.planet.latency >= 0 ? member.planet.latency + ' ms' : t('common.unknown')}
+                      if Number.isFinite(member.planet.lastActivityMs) && member.planet.lastActivityMs >= 0
+                        |  · #{t('monitor.activity_ago', {age: formatAge(member.planet.lastActivityMs)})}
                     if member.planet.path
                       code.monitor-path= member.planet.path
                   else
@@ -162,15 +231,15 @@ block content
                       span.path-badge.is-unknown= t('monitor.unknown')
                     default
                       span.path-badge.is-unknown= t('monitor.unavailable')
-                  if member.probe.latency !== null
+                  if Number.isFinite(member.probe.latency) && member.probe.latency >= 0
                     small.monitor-path-meta #{member.probe.latency} ms
                   if member.probe.path
                     code.monitor-path= member.probe.path
                 td
                   if member.activeBridge
-                    span.risk-badge= t('monitor.bridge_enabled')
+                    a.risk-badge(href='#bridge-guidance' data-dialog-open='bridge-guidance')= t('monitor.bridge_enabled')
                   if member.versionBehind
-                    span.risk-badge= t('monitor.old_client')
+                    a.risk-badge(href='#version-guidance' data-dialog-open='version-guidance')= t('monitor.old_client')
                   if !member.activeBridge && !member.versionBehind
                     span.muted-text= t('common.none')
             else
@@ -183,11 +252,11 @@ block content
           button.btn.btn-default.btn-sm(type='button' data-list-prev)= t('ux.previous')
           button.btn.btn-default.btn-sm(type='button' data-list-next)= t('ux.next')
 
-    details.scope-disclosure
+    details.scope-disclosure(data-dialog)
       summary= t('ux.scope_details')
       p.monitor-footnote= t('monitor.relay_limit_note')
 
-    details#endpoint-probes.surface-card.table-card.monitor-network-card.monitor-disclosure
+    details#endpoint-probes.surface-card.table-card.monitor-network-card.monitor-disclosure(data-dialog data-dialog-title=t('monitor.endpoint_probes'))
       summary.card-heading.card-heading-padded
         div
           h2= t('monitor.endpoint_probes')
@@ -243,7 +312,7 @@ block content
                   td.empty-table-cell(colspan='5')= t('monitor.endpoint_probe_empty')
         p.monitor-footnote= t('monitor.endpoint_probe_scope_note')
 
-    details.monitor-disclosure.surface-card.monitor-service-details
+    details.monitor-disclosure.surface-card.monitor-service-details(data-dialog)
       summary= t('ux.service_details')
       .row.monitor-card-row
         .col-md-6
@@ -301,3 +370,35 @@ block content
                   strong= monitor.metrics.rates.packets ? formatRate(monitor.metrics.rates.packets.tx, 'pkt') : t('monitor.rate_waiting')
             else
               .alert.alert-info= t('monitor.metrics_waiting')
+
+
+    section.surface-card.monitor-card.guidance-card
+      .card-heading
+        h2= t('guide.actions')
+      .guidance-links
+        details#version-guidance.scope-disclosure(data-dialog)
+          summary= t('guide.version_title')
+          p= t('guide.version_scope', {version: monitor.service.version || '—'})
+          ol
+            li= t('guide.version_backup')
+            li
+              p= t('guide.version_upgrade')
+              a(href='https://www.zerotier.com/download/' target='_blank' rel='noopener noreferrer')= t('guide.official_download')
+            li
+              p= t('guide.version_android')
+              a(href='https://github.com/kaaass/ZerotierFix/releases' target='_blank' rel='noopener noreferrer')= t('guide.android_releases')
+            li= t('guide.version_verify')
+        details#bridge-guidance.scope-disclosure(data-dialog)
+          summary= t('guide.bridge_title')
+          p= t('guide.bridge_scope')
+          p= t('guide.bridge_fix')
+        details#planet-guidance.scope-disclosure(data-dialog)
+          summary= t('guide.planet_title')
+          p= t('guide.planet_fix')
+          p= t('guide.planet_verify')
+        details#path-guidance.scope-disclosure(data-dialog)
+          summary= t('guide.path_title')
+          p= t('guide.path_fix')
+          p= t('guide.path_relay')
+      p
+        a(href='https://github.com/Csneer/zerotier-planet-ms/blob/main/docs/client-troubleshooting.md' target='_blank' rel='noopener noreferrer')= t('guide.project_doc')

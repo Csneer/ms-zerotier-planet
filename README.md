@@ -88,6 +88,7 @@ ssh -N -L 3443:127.0.0.1:3443 user@server
 - 多 Root 面板显示切换准备度、World 一致性和每个备用 Root 的观测证据；只做安全观测，不自动改防火墙或强制切流。
 - 联合健康检查、进程监管、优雅退出和 Docker 日志轮转。
 - IP 或 ZeroTier 端口变化时保留 identity 与世界签名密钥，只重新签发 planet/moon。
+- 客户端版本、桥接与链路提示可在 Web 中查看处理建议，完整步骤见[客户端升级与排障](docs/client-troubleshooting.md)。
 - 支持同一 Planet 的多 Root：统一离线签名、独立 Root 身份及 Root-only 实例，详见[多 Root 与切换方案](docs/multi-root.md)。
 - 多 Root 不等于 Controller 高可用或秒级切换：两机隔离实测中一次自动恢复约需 245 秒，部署时应按客户端版本与真实路径重新验收。
 - 首页与连接监控共用 Controller / World / Root 拓扑，区分近期回应、过期路径和不可用探针；同一后台可监听回环及多个明确的 ZeroTier 地址。

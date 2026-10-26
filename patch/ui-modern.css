@@ -590,6 +590,60 @@ a:hover, a:focus { color: var(--primary-dark); text-decoration: none; }
 .config-section .config-card { min-height: 70px; box-shadow: none; }
 #network-settings, #members { scroll-margin-top: 84px; }
 
+/* Secondary content stays in the viewport, without stretching the page. */
+html { scrollbar-gutter: stable; }
+html.app-dialog-open { overflow: hidden; }
+.app-dialog {
+  position: fixed; inset: 0; margin: auto; padding: 0;
+  width: min(900px, calc(100% - 32px)); max-width: calc(100% - 32px);
+  max-height: calc(100vh - 48px); max-height: calc(100dvh - 48px);
+  color: var(--text); background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); box-shadow: 0 24px 80px rgba(16,24,39,.18);
+  overflow: hidden;
+}
+.app-dialog[open] { display: flex; flex-direction: column; }
+.app-dialog::backdrop { background: rgba(16,24,39,.4); }
+.app-dialog-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 20px; border-bottom: 1px solid var(--border); flex: 0 0 auto; }
+.app-dialog-header h2 { margin: 0; font-size: 18px; font-weight: 650; line-height: 1.4; overflow-wrap: anywhere; }
+.app-dialog-close { width: 44px; height: 44px; flex: 0 0 44px; padding: 0; color: var(--muted); background: var(--surface-soft); border: 1px solid var(--border); border-radius: 10px; font-size: 26px; line-height: 1; }
+.app-dialog-close:hover { color: var(--text); background: #eef1f6; }
+.app-dialog-body { min-height: 0; overflow: auto; overscroll-behavior: contain; padding: 24px; overflow-wrap: anywhere; }
+.app-dialog-body > :last-child { margin-bottom: 0; }
+.app-dialog-body > .disclosure-body, .app-dialog-body > .advanced-details-body { padding: 0; }
+.app-dialog-body .config-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.app-dialog-body .config-card { min-height: 90px; }
+.app-dialog-body .detail-item { min-height: 0; padding: 12px 14px; }
+.app-dialog-body .monitor-footnote { padding: 0; margin: 16px 0 0; background: none; border: 0; line-height: 1.6; }
+.app-dialog-body .monitor-topology-meta { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.app-dialog-body ol { padding-left: 24px; }
+.app-dialog-body li + li { margin-top: 16px; }
+.dialog-launcher > summary:after { transform: rotate(-45deg); }
+.advanced-details.dialog-launcher > summary:after { content: '\2197'; font-size: 18px; }
+.member-quick-info { margin: 0; }
+.member-quick-info > summary { list-style: none; color: var(--primary); cursor: pointer; padding: 5px 0; text-decoration: underline; text-decoration-style: dotted; text-underline-offset: 4px; }
+.member-quick-info > summary::-webkit-details-marker { display: none; }
+.member-quick-info > summary:hover { color: var(--primary-dark); }
+.member-quick-info:not(.dialog-launcher)[open] .member-quick-body { min-width: 280px; padding: 16px 0; }
+a.risk-badge { text-decoration: underline; text-underline-offset: 3px; padding: 6px 9px; }
+a.risk-badge:hover { color: #79373f; background: #fce0e4; }
+.monitor-alert > .btn { margin-top: 12px; }
+.guidance-card { min-height: 0; }
+.guidance-card .guidance-links { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.guidance-card .scope-disclosure { margin: 0; border: 1px solid var(--border); border-radius: var(--radius-sm); }
+.guidance-card .scope-disclosure > summary { justify-content: space-between; }
+.guidance-card > p { margin: 14px 0 0; font-size: 13px; }
+.member-status.is-unknown { color: var(--muted); }
+.member-status.is-unknown .status-dot { background: #8893a2; box-shadow: none; }
+.app-tooltip { position: fixed; z-index: 2000; width: max-content; max-width: min(300px, calc(100vw - 24px)); padding: 9px 12px; border-radius: 8px; color: #fff; background: var(--navy); box-shadow: var(--shadow); font-size: 12px; line-height: 1.5; pointer-events: auto; }
+
+@media (max-width: 519px) {
+  .app-dialog { width: calc(100% - 16px); max-width: calc(100% - 16px); max-height: calc(100vh - 24px); max-height: calc(100dvh - 24px); border-radius: 14px; }
+  .app-dialog-header { padding: 10px 14px; }
+  .app-dialog-header h2 { font-size: 17px; }
+  .app-dialog-body { padding: 16px; }
+  .app-dialog-body .config-grid, .app-dialog-body .monitor-topology-meta, .guidance-card .guidance-links { grid-template-columns: 1fr; }
+}
+
 @media (min-width: 768px) and (max-width: 1100px) {
   .app-navbar-inner { padding-left: 10px; padding-right: 10px; }
   .app-brand { padding-right: 12px; }
