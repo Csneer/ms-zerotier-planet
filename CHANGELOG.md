@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+### Added
+
+- Member quick-view dialogs with observed client version, assigned IPs, authorization, bridging, active paths, latency and activity; hover and keyboard-focus hints explain observation limits.
+- Clickable version and bridge notices with practical remediation, compatible Android client guidance and a client troubleshooting document.
+
+### Changed
+
+- Open secondary settings, diagnostics and raw data in responsive dialogs with keyboard focus handling, Escape/backdrop dismissal and native disclosure fallback, keeping the main page height stable.
+- Keep member details synchronized after saves and rollbacks, and present missing path observations as unknown instead of asserting a device is offline.
+
 ## [1.2.0] - 2026-10-26
 
 ### Added

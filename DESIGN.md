@@ -31,12 +31,12 @@ Success signals: fewer wrapped headings and clipped tables at 360–1440px, visi
 
 ## Information architecture
 
-Primary navigation: Overview, Monitor, Networks, New network, Downloads, Administrators. The brand returns to Overview. The public entry shows the brand once, one value heading, one supporting sentence, and a sign-in action. Overview has three network/member metrics, compact actions, a Root status summary, and secondary administration details. Network detail puts members before configuration; its eight configuration cards live in a collapsed settings section, reachable from a settings link beside easy setup. Monitor prioritizes current service and Root status, then network communication, endpoint probes, member paths, and traffic; detailed diagnostics remain collapsed while important warnings remain visible. Downloads explains Planet/Moon usage before the file table.
+Primary navigation: Overview, Monitor, Networks, New network, Downloads, Administrators. The brand returns to Overview. The public entry shows the brand once, one value heading, one supporting sentence, and a sign-in action. Overview has three network/member metrics, compact actions, a Root status summary, and secondary administration details. Network detail puts members before configuration; its eight configuration cards open in a bounded configuration dialog from the settings link beside easy setup. Member IDs open a read-only detail dialog with observed version, IPs, authorization, bridge permission and active paths. Monitor prioritizes current service and Root status, then network communication, endpoint probes, member paths, and traffic; detailed diagnostics open in bounded dialogs while important warnings remain visible with direct guidance actions. Downloads explains Planet/Moon usage before the file table.
 
 ## Design principles
 
 1. Evidence before decoration: a state includes a label, value, and scope where needed.
-2. Progressive disclosure: common actions stay visible; raw JSON and risky operations stay behind clear sections.
+2. Progressive disclosure: common actions stay visible; raw JSON and longer diagnostics stay in labelled dialogs; destructive actions retain their confirmation routes.
 3. Composable primitives: surfaces, cards, badges, buttons, fields, tables, and notices use shared tokens and variants.
 4. Responsive by intent: navigation collapses, grids stack, and wide operational tables scroll with their headers instead of shrinking unreadably.
 5. Safe optimism: pending, unavailable, stale, and unknown are distinct from healthy and offline.
@@ -47,7 +47,7 @@ Use a light neutral canvas with white surfaces, quiet borders, restrained action
 
 ## Components
 
-Shared primitives: app shell and responsive nav, brand mark, page heading, surface card, stat card, action card, status/path badge, alert/notice, form field, switch, responsive table, empty state, confirmation card, advanced details, search/pagination controls, and language toggle. Each component has base, hover/focus, disabled, success/attention/error, and mobile behavior. Variants should be expressed with classes such as `.is-online`, `.is-offline`, `.is-unknown`, `.btn-primary`, and `.btn-default`, not page-specific inline styles.
+Shared primitives: app shell and responsive nav, brand mark, page heading, surface card, stat card, action card, status/path badge, alert/notice, form field, switch, responsive table, empty state, confirmation card, native modal dialogs with progressive disclosure fallback, hover/focus tooltips, actionable risk guides, search/pagination controls, and language toggle. Each component has base, hover/focus, disabled, success/attention/error, and mobile behavior. Variants should be expressed with classes such as `.is-online`, `.is-offline`, `.is-unknown`, `.btn-primary`, and `.btn-default`, not page-specific inline styles.
 
 ## Accessibility
 
@@ -62,11 +62,11 @@ Target WCAG 2.1 AA for contrast and keyboard use. Keep visible `:focus-visible` 
 
 ## Interaction states
 
-Every data surface must support healthy, unavailable, stale/unknown, empty, error, and disabled states. Auto-save fields retain pending/saved/error feedback; failed authorization changes restore the previous value. Network and member lists progressively enhance to search with 10 matching rows per page. Filtering and pagination hide existing rows instead of removing DOM nodes, preserving inputs and pending save state. Search, count, pagination, and no-results controls are hidden until JavaScript initializes; without JavaScript all rows remain available. Monitoring uses an explicit manual refresh rather than periodically reloading the page. Refresh remains discoverable on mobile, and opening a settings anchor expands the matching disclosure. Downloads show file type, size, modification time, checksum, and a single obvious action.
+Every data surface must support healthy, unavailable, stale/unknown, empty, error, and disabled states. Auto-save fields retain pending/saved/error feedback; failed authorization changes restore the previous value. Network and member lists progressively enhance to search with 10 matching rows per page. Filtering and pagination hide existing rows instead of removing DOM nodes, preserving inputs and pending save state. Search, count, pagination, and no-results controls are hidden until JavaScript initializes; without JavaScript all rows remain available. Monitoring uses an explicit manual refresh rather than periodically reloading the page. Refresh remains discoverable on mobile, and a settings or diagnostic anchor opens the matching dialog. Dialog bodies scroll independently without changing page height; close, Escape and backdrop return focus to the opener. Native modal focus containment and visible close controls work on touch and keyboard. When dialog support or JavaScript is absent, the original native details remain usable. Member dialog values follow successful saves and failed-save rollbacks. Downloads show file type, size, modification time, checksum, and a single obvious action.
 
 ## Content voice
 
-Use direct, operational language. Use one title per task and avoid repeating a card label in its subtitle or action. Explain what a status proves and what it does not prove. An intentionally single-Root deployment is a neutral “no standby” state; missing backup capacity alone must not become a fault warning. Real path, policy, and World consistency warnings remain visible outside disclosures. Keep Chinese and English keys paired in `patch/uiLanguage.js`; avoid inventing stronger availability claims than the observation supports.
+Use direct, operational language. Use one title per task and avoid repeating a card label in its subtitle or action. Explain what a status proves and what it does not prove. An intentionally single-Root deployment is a neutral “no standby” state; missing backup capacity alone must not become a fault warning. Real path, policy, and World consistency warnings remain visible outside disclosures. A client version notice compares reported ZeroTier versions with the Controller, and must not imply a vulnerability or latest-release check. Guidance explains preserving identity and Planet, compatible Android clients, and reconnect/verification steps. Unknown member paths are neutral observations, not proof of a powered-off device. Keep Chinese and English keys paired in `patch/uiLanguage.js`; avoid inventing stronger availability claims than the observation supports.
 
 ## Implementation constraints
 
@@ -74,7 +74,7 @@ The app is built from patched upstream ztncui templates and served by Node/Expre
 
 ## Open questions
 
-- [ ] Owner: implementation · Complete the current pass's bilingual browser checks across mobile, tablet, and desktop, including search/pagination, member save failures, disclosures, and keyboard navigation. Template checks alone are not visual acceptance.
+- [x] Owner: implementation · Bilingual Chromium checks passed at 360/390/768/1440px for search/pagination, member saves and rollbacks, responsive dialogs, focus containment/return, hover/focus hints and no-JS fallback. Member and risk-guide screenshots reviewed on 2026-10-26.
 - [ ] Owner: operations · External IPv6 Root reachability still needs a real external host; local UI or container checks cannot establish public network behavior.
 
 ## Root address-family observations

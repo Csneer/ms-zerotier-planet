@@ -193,6 +193,10 @@ jobs:
             -v "$GITHUB_WORKSPACE:/repo:ro" -w /repo \
             -e NODE_PATH=/opt/ztncui/src/node_modules \
             zerotier-planet:ci-test tests/monitor-focus.cjs
+          docker run --rm --network none --entrypoint node \
+            -v "$GITHUB_WORKSPACE:/repo:ro" -w /repo \
+            -e NODE_PATH=/opt/ztncui/src/node_modules \
+            zerotier-planet:ci-test tests/member-info.cjs
 
       - uses: actions/setup-node@v7
         with:

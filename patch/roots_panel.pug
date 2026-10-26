@@ -65,7 +65,7 @@ mixin roots_panel(topology, listeners, compact)
     if compact
       a.root-monitor-link(href='/controller/monitor#root-topology')= t('ux.root_details_link')
     else
-      details.monitor-disclosure.root-diagnostics
+      details.monitor-disclosure.root-diagnostics(data-dialog)
         summary= t('ux.root_details')
         .disclosure-body
           .monitor-topology-meta
@@ -122,7 +122,7 @@ mixin roots_panel(topology, listeners, compact)
                     div
                       span.path-badge(class=root.ready ? 'is-direct' : 'is-unknown')= t('monitor.root_evidence_' + root.evidence)
           p.monitor-footnote= t('monitor.root_limit_note', {seconds: topology.recentReceiveSeconds})
-      details.monitor-disclosure.host-diagnostics
+      details.monitor-disclosure.host-diagnostics(data-dialog)
         summary= t('ux.host_details')
         .disclosure-body
           if host.collectedAt

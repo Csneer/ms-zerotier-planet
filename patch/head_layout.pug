@@ -27,7 +27,7 @@ html(lang=lang || 'zh-CN')
     script(src='/jqjs/jquery.min.js')
     script(src='/bsjs/bootstrap.min.js')
     script(src='/javascripts/ui-focus.js' defer)
-  body
+  body(data-dialog-close=t('common.close'))
     a.app-skip-link(href='#main-content')= lang === 'zh-CN' ? '跳转到内容' : 'Skip to content'
     block app_navigation
       nav.navbar.navbar-inverse.navbar-fixed-top.app-navbar

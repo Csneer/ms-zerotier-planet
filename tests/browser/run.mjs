@@ -6,6 +6,7 @@ import {mkdir} from 'node:fs/promises';
 import {join} from 'node:path';
 import {chromium} from 'playwright';
 import {verifyHandlers} from './handlers.mjs';
+import {openDialog, closeDialog, verifyMemberDialogs, verifyRiskGuides} from './dialogs.mjs';
 const image = process.argv[2] || 'zerotier-planet:ci-test';
 if (image.startsWith('-') || image.includes('://')) throw new Error('Expected a local Docker image tag');
 // Documentation-only IPv6: test configuration/rendering without a public peer.
@@ -114,15 +115,14 @@ try {
         } else {
           const disclosure = panel.locator('details.root-diagnostics');
           assert.equal(await disclosure.getAttribute('open'), null, 'Root detail starts collapsed');
-          await disclosure.locator('summary').click();
-          assert.notEqual(await disclosure.getAttribute('open'), null);
-          const endpoint = panel.locator('.monitor-endpoint-row code');
+          const dialog = await openDialog(page, disclosure);
+          const endpoint = dialog.locator('.monitor-endpoint-row code');
           assert.deepEqual(await endpoint.allTextContents(), [rootIPv6+'/9994'], 'full IPv6 stable endpoint must survive rendering');
-          const text = await panel.innerText();
+          const text = await panel.innerText() + await dialog.innerText();
           assert.ok(text.includes(lang === 'en' ? 'NO STABLE ENDPOINT' : '未配置稳定端点'));
           assert.ok(text.includes(lang === 'en' ? 'EXTERNAL PATH UNVERIFIED' : '外部可达性未验证'));
           assert.ok(text.includes(lang === 'en' ? 'does not prove public IPv4 / IPv6 reachability' : '本机运行不证明公网 IPv4 / IPv6 可达'));
-          assert.ok(await panel.locator('.monitor-root-item').evaluateAll(cards => cards.every(card => {
+          assert.ok(await dialog.locator('.monitor-root-item').evaluateAll(cards => cards.every(card => {
             const bounds = card.getBoundingClientRect();
             return card.scrollWidth <= card.clientWidth && [...card.querySelectorAll('code, .path-badge')].every(node => {
               const rect = node.getBoundingClientRect();
@@ -131,7 +131,8 @@ try {
           })), `${route} ${lang} at ${width}px must contain complete Root content`);
         }
         await assertNoPageOverflow(`${route} ${lang} at ${width}px`);
-        if (screenshotDir) await page.screenshot({path:join(screenshotDir, `root-${route.endsWith('monitor') ? 'monitor' : 'home'}-${lang}-${width}.png`), fullPage:true});
+        if (screenshotDir) await page.screenshot({path:join(screenshotDir, `root-${route.endsWith('monitor') ? 'monitor' : 'home'}-${lang}-${width}.png`), fullPage:route !== '/controller/monitor'});
+        if (route === '/controller/monitor') await closeDialog(page, panel.locator('details.root-diagnostics'));
       }
     }
   }
@@ -203,7 +204,7 @@ try {
     (async () => {
       for (let i = 1; i <= 11; i++) {
         await post('/controller/network/${nwid.slice(0, 10)}' + i.toString(16).padStart(6, '0'), {name: 'Pagination network ' + i, private: true});
-        await post('/controller/network/${nwid}/member/' + ('bb' + i.toString(16).padStart(8, '0')), {authorized: false, name: 'Pagination member ' + i, ipAssignments: ['10.88.99.' + (100 + i)]});
+        await post('/controller/network/${nwid}/member/' + ('bb' + i.toString(16).padStart(8, '0')), {authorized: false, activeBridge: i === 1, name: 'Pagination member ' + i, ipAssignments: ['10.88.99.' + (100 + i)]});
       }
     })().catch(error => {console.error(error.message); process.exitCode = 1;});
   `);
@@ -279,16 +280,15 @@ try {
   assert.equal(await memberList.locator('[data-list-row]:visible').count(), 1, 'assigned IP search matches');
   assert.equal(await memberList.locator('[data-list-row]:visible .member-name-input').getAttribute('name'), 'bb00000001');
   const settings = page.locator('#network-settings');
-  assert.equal(await settings.getAttribute('open'), null);
-  await page.locator('a[href="#network-settings"]').click();
-  await settings.locator('.config-grid').waitFor({state: 'visible'});
-  assert.notEqual(await settings.getAttribute('open'), null, 'settings link expands disclosure');
+  await openDialog(page, settings, page.locator('a[href="#network-settings"]'));
+  assert.equal(await page.locator('#network-settings-dialog .config-grid').isVisible(), true);
+  await closeDialog(page, settings, page.locator('a[href="#network-settings"]'));
   await settings.locator('summary').focus();
   await settings.locator('summary').press('Enter');
-  assert.equal(await settings.getAttribute('open'), null, 'Enter collapses disclosure');
-  assert.equal(await settings.locator('.config-grid').isVisible(), false);
-  await settings.locator('summary').press('Enter');
-  assert.equal(await settings.locator('.config-grid').isVisible(), true, 'Enter reopens disclosure');
+  await page.locator('#network-settings-dialog').waitFor({state: 'visible'});
+  await closeDialog(page, settings);
+  await verifyMemberDialogs({page, detail, member: 'bb00000001', screenshotDir});
+  await verifyRiskGuides({page, base, screenshotDir});
   const noJs = await browser.newContext({javaScriptEnabled: false, storageState: await context.storageState(), viewport: {width: 390, height: 844}});
   try {
     const noJsPage = await noJs.newPage();
@@ -296,6 +296,10 @@ try {
     assert.equal(await noJsPage.locator('[data-list-row]:visible').count(), 12, 'no-JS network list keeps all rows visible');
     await noJsPage.goto(detail + '?lang=en');
     assert.equal(await noJsPage.locator('#members [data-list-row]:visible').count(), 12, 'no-JS member list keeps all rows visible');
+    await noJsPage.locator('#member-info-bb00000001 summary').click();
+    assert.equal(await noJsPage.locator('#member-info-bb00000001 .member-quick-body').isVisible(), true, 'native member details remain usable without JS');
+    await noJsPage.locator('#network-settings summary').click();
+    assert.equal(await noJsPage.locator('#network-settings .config-grid').isVisible(), true, 'native settings remain usable without JS');
   } finally { await noJs.close(); }
   pass('12 real networks/members: bilingual search, empty results, pagination, monitor lists and second-page edits persist');
   await page.setViewportSize({width:390,height:844});await page.reload();
