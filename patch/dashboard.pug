@@ -7,122 +7,88 @@ block content
       strong= t('dashboard.error')
       | #{error}
   else
-    section.hero-card
+    section.hero-card.dashboard-overview
       .hero-copy
-        span.eyebrow= t('dashboard.eyebrow')
-        h1= t('dashboard.heading')
-        p= t('dashboard.description')
-        .hero-actions
-          a.btn.btn-primary.btn-lg(href='/controller/networks')
-            span.glyphicon.glyphicon-globe(aria-hidden='true')
-            |  #{t('dashboard.manage_networks')}
-          a.btn.btn-default.btn-lg(href='/controller/downloads')
-            span.glyphicon.glyphicon-download-alt(aria-hidden='true')
-            |  #{t('dashboard.download_planet')}
-      .hero-status-group
-        .hero-status
-          span.status-pill(class=zt_status.online ? 'is-online' : 'is-offline')
-            span.status-dot
-            | #{zt_status.online ? t('dashboard.online') : t('dashboard.offline')}
-          small= t('dashboard.controller_status')
-        .hero-status
-          if dashboard_stats && dashboard_stats.available
-            strong.hero-status-value #{dashboard_stats.planetReachableMemberCount} / #{dashboard_stats.memberCount}
-          else
-            strong.hero-status-value —
-          small= dashboard_stats && dashboard_stats.available ? t('dashboard.planet_reachable_devices') : t('dashboard.stats_unavailable')
+        h1= t('nav.dashboard')
+      .hero-status
+        span.status-pill(class=zt_status.online ? 'is-online' : 'is-offline')
+          span.status-dot(aria-hidden='true')
+          | #{zt_status.online ? t('dashboard.online') : t('dashboard.offline')}
+        small= t('dashboard.controller_status')
 
-    .dashboard-stat-grid(role='group' aria-label=t('dashboard.quick_heading'))
-      .stat-card.stat-card-accent
-        .stat-icon
-          span.glyphicon.glyphicon-screenshot(aria-hidden='true')
-        .stat-content
-          span.stat-label= t('dashboard.node_address')
-          strong= zt_status.address
-          small.stat-meta= t('dashboard.controller_status')
+    .dashboard-stat-grid(role='group' aria-label=t('ux.overview_stats'))
       .stat-card
         .stat-icon.stat-icon-cyan
-          span.glyphicon.glyphicon-globe(aria-hidden='true')
+          +app_icon('globe')
         .stat-content
           span.stat-label= t('nav.networks')
           strong= dashboard_stats && dashboard_stats.available ? dashboard_stats.networkCount : '—'
-          small.stat-meta= dashboard_stats && dashboard_stats.available ? t('dashboard.network_count') : t('dashboard.stats_unavailable')
+          if !dashboard_stats || !dashboard_stats.available
+            small.stat-meta= t('dashboard.stats_unavailable')
       .stat-card
         .stat-icon.stat-icon-green
-          span.glyphicon.glyphicon-user(aria-hidden='true')
+          +app_icon('user')
         .stat-content
           span.stat-label= t('network.member_total')
           strong= dashboard_stats && dashboard_stats.available ? dashboard_stats.memberCount : '—'
-          small.stat-meta= dashboard_stats && dashboard_stats.available ? t('dashboard.member_count') : t('dashboard.stats_unavailable')
-      .stat-card
-        .stat-icon.stat-icon-violet
-          span.glyphicon.glyphicon-tags(aria-hidden='true')
-        .stat-content
-          span.stat-label= t('dashboard.zt_version')
-          strong= zt_status.version
-          small.stat-meta= t('dashboard.runtime_version')
+          if !dashboard_stats || !dashboard_stats.available
+            small.stat-meta= t('dashboard.stats_unavailable')
       .stat-card
         .stat-icon.stat-icon-cyan
-          span.glyphicon.glyphicon-signal(aria-hidden='true')
+          +app_icon('signal')
         .stat-content
           span.stat-label= t('dashboard.planet_reachable_devices')
-          strong= dashboard_stats && dashboard_stats.available ? dashboard_stats.planetReachableMemberCount + ' / ' + dashboard_stats.memberCount : '—'
+          strong= dashboard_stats && dashboard_stats.available ? dashboard_stats.planetReachableMemberCount : '—'
           small.stat-meta= t('dashboard.reachability_scope')
-      .stat-card
-        .stat-icon.stat-icon-amber
-          span.glyphicon.glyphicon-transfer(aria-hidden='true')
-        .stat-content
-          span.stat-label= t('dashboard.tcp_fallback')
-          strong= zt_status.tcpFallbackActive ? t('dashboard.active') : t('dashboard.inactive')
-          small.stat-meta= t('dashboard.tcp_fallback_desc')
-
-    +roots_panel(topology, uiListeners)
+    +roots_panel(topology, uiListeners, true)
 
     .section-heading
       div
-        span.eyebrow= t('dashboard.quick_actions')
-        h2= t('dashboard.quick_heading')
+        h2= t('dashboard.quick_actions')
 
     .dashboard-action-grid
-      a.action-card.action-card-featured(href='/controller/monitor')
-        span.action-icon.action-green
-          span.glyphicon.glyphicon-signal(aria-hidden='true')
-        strong= t('nav.monitor')
-        p= t('dashboard.monitor_description')
-        span.action-link= t('dashboard.open_monitor')
-          span.glyphicon.glyphicon-arrow-right(aria-hidden='true')
-      a.action-card(href='/controller/networks')
+      a.action-card.action-card-featured(href='/controller/networks')
         span.action-icon.action-blue
-          span.glyphicon.glyphicon-globe(aria-hidden='true')
+          +app_icon('globe')
         strong= t('nav.networks')
         p= t('dashboard.networks_description')
-        span.action-link= t('dashboard.open_networks')
-          span.glyphicon.glyphicon-arrow-right(aria-hidden='true')
+        span.action-link(aria-hidden='true')
+          +app_icon('arrow-right')
       a.action-card(href='/controller/network/create')
         span.action-icon.action-violet
-          span.glyphicon.glyphicon-plus(aria-hidden='true')
+          +app_icon('plus')
         strong= t('nav.new_network')
         p= t('dashboard.new_network_description')
-        span.action-link= t('dashboard.create_network')
-          span.glyphicon.glyphicon-arrow-right(aria-hidden='true')
+        span.action-link(aria-hidden='true')
+          +app_icon('arrow-right')
       a.action-card(href='/controller/downloads')
         span.action-icon.action-cyan
-          span.glyphicon.glyphicon-download-alt(aria-hidden='true')
-        strong= t('dashboard.config_files')
+          +app_icon('download-alt')
+        strong= t('dashboard.download_planet')
         p= t('dashboard.config_description')
-        span.action-link= t('dashboard.view_downloads')
-          span.glyphicon.glyphicon-arrow-right(aria-hidden='true')
-
-    .section-heading.dashboard-management-heading
-      div
-        span.eyebrow= t('dashboard.management')
-        h2= t('dashboard.administrators')
-
-    .dashboard-management
-      a.action-card.dashboard-management-card(href='/users')
+        span.action-link(aria-hidden='true')
+          +app_icon('arrow-right')
+      a.action-card(href='/controller/monitor')
         span.action-icon.action-green
-          span.glyphicon.glyphicon-user(aria-hidden='true')
-        strong= t('dashboard.administrators')
-        p= t('dashboard.admin_description')
-        span.action-link= t('dashboard.manage_users')
-          span.glyphicon.glyphicon-arrow-right(aria-hidden='true')
+          +app_icon('signal')
+        strong= t('nav.monitor')
+        p= t('dashboard.monitor_description')
+        span.action-link(aria-hidden='true')
+          +app_icon('arrow-right')
+
+    details.monitor-disclosure.dashboard-management
+      summary= t('dashboard.management')
+      .disclosure-body
+        .monitor-topology-meta
+          .detail-item
+            span= t('dashboard.node_address')
+            code= zt_status.address
+          .detail-item
+            span= t('dashboard.zt_version')
+            strong= zt_status.version
+          .detail-item
+            span= t('dashboard.tcp_fallback')
+            strong= zt_status.tcpFallbackActive ? t('dashboard.active') : t('dashboard.inactive')
+        a.btn.btn-default(href='/users')
+          +app_icon('user')
+          |  #{t('dashboard.administrators')}

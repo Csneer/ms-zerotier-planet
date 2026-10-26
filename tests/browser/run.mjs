@@ -56,6 +56,26 @@ try {
       assert.fail(`${label} page overflow: ${JSON.stringify({...report, screenshot: file})}`);
     }
   }
+  // Public entry and sign-in should explain one task, without repeated branding.
+  for (const width of [360, 390, 768, 1440]) {
+    await page.setViewportSize({width, height: 900});
+    for (const route of ['/', '/login']) {
+      for (const lang of ['en', 'zh-CN']) {
+        await page.goto(base + route + '?lang=' + lang);
+        assert.equal(await page.locator('html').getAttribute('lang'), lang);
+        assert.equal(await page.locator('.auth-brand').count(), 1);
+        const text = await page.locator('body').innerText();
+        assert.equal((text.match(/ZeroTier Planet/g) || []).length, 1, 'brand appears once');
+        assert.equal(await page.locator('.auth-heading h1').count(), 1);
+        assert.equal(await page.locator('.auth-heading p').count(), 1);
+        assert.equal(await page.locator('.auth-story, .auth-points, .auth-card-footer').count(), 0, 'no repeated marketing blocks');
+        assert.ok(!text.includes('清爽、可控的私有网络。'));
+        assert.ok(!text.includes('为自托管 ZeroTier 优化'));
+        await assertNoPageOverflow(`public ${route} ${lang} at ${width}px`);
+      }
+    }
+  }
+  pass('public entry and login show one brand and concise copy in both languages at 360/390/768/1440px');
   await page.goto(base+'/login?lang=en');
   await page.locator('#username').fill('admin'); await page.locator('#password').fill('password');
   await page.locator('button[type=submit]').click();
@@ -85,20 +105,32 @@ try {
         assert.equal(await page.locator('html').getAttribute('lang'), lang);
         const panel = page.locator('#root-topology');
         await panel.waitFor({state:'visible'});
-        const endpoint = panel.locator('.monitor-endpoint-row code');
-        assert.deepEqual(await endpoint.allTextContents(), [rootIPv6+'/9994'], 'full IPv6 stable endpoint must survive rendering');
-        const text = await panel.innerText();
-        assert.ok(text.includes(lang === 'en' ? 'NO STABLE ENDPOINT' : '未配置稳定端点'));
-        assert.ok(text.includes(lang === 'en' ? 'EXTERNAL PATH UNVERIFIED' : '外部可达性未验证'));
-        assert.ok(text.includes(lang === 'en' ? 'does not prove public IPv4 / IPv6 reachability' : '本机运行不证明公网 IPv4 / IPv6 可达'));
+        if (route === '/controller') {
+          assert.equal(await panel.locator('.monitor-endpoint-row').count(), 0, 'home keeps Root details in monitoring');
+          assert.equal(await panel.locator('.root-monitor-link').getAttribute('href'), '/controller/monitor#root-topology');
+          assert.equal(await page.locator('.dashboard-stat-grid .stat-card').count(), 3, 'home shows three focused network metrics');
+          assert.equal(await page.locator('.dashboard-action-grid .action-card').count(), 4);
+          assert.equal(await page.locator('.dashboard-management').getAttribute('open'), null, 'administration is collapsed initially');
+        } else {
+          const disclosure = panel.locator('details.root-diagnostics');
+          assert.equal(await disclosure.getAttribute('open'), null, 'Root detail starts collapsed');
+          await disclosure.locator('summary').click();
+          assert.notEqual(await disclosure.getAttribute('open'), null);
+          const endpoint = panel.locator('.monitor-endpoint-row code');
+          assert.deepEqual(await endpoint.allTextContents(), [rootIPv6+'/9994'], 'full IPv6 stable endpoint must survive rendering');
+          const text = await panel.innerText();
+          assert.ok(text.includes(lang === 'en' ? 'NO STABLE ENDPOINT' : '未配置稳定端点'));
+          assert.ok(text.includes(lang === 'en' ? 'EXTERNAL PATH UNVERIFIED' : '外部可达性未验证'));
+          assert.ok(text.includes(lang === 'en' ? 'does not prove public IPv4 / IPv6 reachability' : '本机运行不证明公网 IPv4 / IPv6 可达'));
+          assert.ok(await panel.locator('.monitor-root-item').evaluateAll(cards => cards.every(card => {
+            const bounds = card.getBoundingClientRect();
+            return card.scrollWidth <= card.clientWidth && [...card.querySelectorAll('code, .path-badge')].every(node => {
+              const rect = node.getBoundingClientRect();
+              return rect.left >= bounds.left && rect.right <= bounds.right + 1 && node.scrollWidth <= node.clientWidth + 1;
+            });
+          })), `${route} ${lang} at ${width}px must contain complete Root content`);
+        }
         await assertNoPageOverflow(`${route} ${lang} at ${width}px`);
-        assert.ok(await panel.locator('.monitor-root-item').evaluateAll(cards => cards.every(card => {
-          const bounds = card.getBoundingClientRect();
-          return card.scrollWidth <= card.clientWidth && [...card.querySelectorAll('code, .path-badge')].every(node => {
-            const rect = node.getBoundingClientRect();
-            return rect.left >= bounds.left && rect.right <= bounds.right + 1 && node.scrollWidth <= node.clientWidth + 1;
-          });
-        })), `${route} ${lang} at ${width}px must contain complete Root content`);
         if (screenshotDir) await page.screenshot({path:join(screenshotDir, `root-${route.endsWith('monitor') ? 'monitor' : 'home'}-${lang}-${width}.png`), fullPage:true});
       }
     }
@@ -159,6 +191,113 @@ try {
   await auth.uncheck({force:true});await page.locator('#members-save-status.is-error').waitFor({state:'visible'});assert.equal(await auth.isChecked(),true);
   await page.unroute('**/network/'+nwid+'/members');
   pass('member authorization/name survive reload, failed authorization rolls back with visible feedback');
+  // Populate only the disposable container's authenticated loopback controller API.
+  docker('exec', name, 'node', '-e', `
+    const fs = require('fs');
+    const base = 'http://127.0.0.1:' + fs.readFileSync('/var/lib/zerotier-one/zerotier-one.port', 'utf8').trim();
+    const headers = {'X-ZT1-AUTH': fs.readFileSync('/var/lib/zerotier-one/authtoken.secret', 'utf8').trim(), 'Content-Type': 'application/json'};
+    async function post(path, value) {
+      const response = await fetch(base + path, {method: 'POST', headers, body: JSON.stringify(value)});
+      if (!response.ok) throw new Error('Fixture failed: ' + response.status);
+    }
+    (async () => {
+      for (let i = 1; i <= 11; i++) {
+        await post('/controller/network/${nwid.slice(0, 10)}' + i.toString(16).padStart(6, '0'), {name: 'Pagination network ' + i, private: true});
+        await post('/controller/network/${nwid}/member/' + ('bb' + i.toString(16).padStart(8, '0')), {authorized: false, name: 'Pagination member ' + i, ipAssignments: ['10.88.99.' + (100 + i)]});
+      }
+    })().catch(error => {console.error(error.message); process.exitCode = 1;});
+  `);
+  async function checkPagination(list, label) {
+    assert.equal(await list.locator('[data-list-row]').count(), 12, label + ' has real persisted fixtures');
+    assert.equal(await list.locator('[data-list-row]:visible').count(), 10, label + ' first page');
+    await list.locator('[data-list-next]').click();
+    assert.equal(await list.locator('[data-list-row]:visible').count(), 2, label + ' second page');
+    assert.equal(await list.locator('[data-list-next]').isDisabled(), true);
+    await list.locator('[data-list-search]').fill('nonexistent-pagination-result');
+    assert.equal(await list.locator('[data-list-row]:visible').count(), 0);
+    assert.equal(await list.locator('[data-list-empty]').isVisible(), true);
+    assert.equal(await list.locator('[data-list-prev]').isDisabled(), true);
+    await list.locator('[data-list-search]').fill('');
+    assert.equal(await list.locator('[data-list-row]:visible').count(), 10, 'clearing search resets to page one');
+    await list.locator('[data-list-next]').click();
+  }
+  for (const lang of ['en', 'zh-CN']) {
+    await page.goto(base + '/controller/networks?lang=' + lang);
+    await checkPagination(page.locator('.network-list-card'), 'networks ' + lang);
+    await page.goto(detail + '?lang=' + lang);
+    await checkPagination(page.locator('#members'), 'members ' + lang);
+    await page.goto(base + '/controller/monitor?lang=' + lang);
+    await checkPagination(page.locator('#network-health'), 'monitor networks ' + lang);
+    await checkPagination(page.locator('#member-paths'), 'monitor members ' + lang);
+  }
+  await page.goto(detail + '?lang=en');
+  const memberList = page.locator('#members');
+  await memberList.locator('[data-list-next]').click();
+  const secondPageName = memberList.locator('[data-list-row]:visible .member-name-input').first();
+  const secondPageId = await secondPageName.getAttribute('name');
+  const previousMemberAlias = await secondPageName.inputValue();
+  await secondPageName.fill('Saved from second page');
+  const secondPageSave = page.waitForResponse(r => r.url() === detail + '/members' && r.request().method() === 'POST');
+  await secondPageName.press('Tab');
+  assert.equal((await secondPageSave).status(), 204);
+  await page.waitForTimeout(100);
+  if (previousMemberAlias.trim()) {
+    await memberList.locator('[data-list-search]').fill(previousMemberAlias);
+    assert.equal(await memberList.locator('.member-name-input[name="' + secondPageId + '"]').isVisible(), false, 'replaced alias stops matching without a reload');
+  }
+  await memberList.locator('[data-list-search]').fill('Saved from second page');
+  assert.equal(await memberList.locator('[data-list-row]:visible').count(), 1, 'new alias is searchable immediately');
+  await page.reload();
+  await memberList.locator('[data-list-search]').fill(secondPageId);
+  assert.equal(await memberList.locator('[data-list-row]:visible').count(), 1);
+  assert.equal(await memberList.locator('.member-name-input[name="' + secondPageId + '"]').inputValue(), 'Saved from second page');
+  await page.goto(base + '/controller/networks?lang=en');
+  const networkList = page.locator('.network-list-card');
+  await networkList.locator('[data-list-next]').click();
+  const secondNetworkLink = networkList.locator('[data-list-row]:visible a[href^="/controller/network/"]').first();
+  const secondNetworkPath = await secondNetworkLink.getAttribute('href');
+  await secondNetworkLink.click();
+  await page.locator('#change-name').click();
+  await page.locator('#name-input').fill('Network saved from second page');
+  const secondNetworkSave = page.waitForResponse(r => r.url() === base + secondNetworkPath + '/name' && r.request().method() === 'POST');
+  await page.locator('#name-input').press('Enter');
+  assert.equal((await secondNetworkSave).status(), 302, 'second-page network rename redirects after save');
+  await page.locator('#name-input').waitFor({state: 'hidden'});
+  await page.goto(base + '/controller/networks');
+  await networkList.locator('[data-list-search]').fill('Network saved from second page');
+  assert.equal(await networkList.locator('[data-list-row]:visible').count(), 1);
+  assert.equal(await networkList.locator('[data-list-row]:visible a[href^="/controller/network/"]').first().getAttribute('href'), secondNetworkPath);
+  await networkList.locator('[data-list-search]').fill(secondNetworkPath.split('/').pop());
+  assert.equal(await networkList.locator('[data-list-row]:visible').count(), 1, 'network ID search matches');
+  await page.goto(detail + '?lang=en');
+  const memberSearch = memberList.locator('[data-list-search]');
+  await memberSearch.fill('Saved from second page');
+  assert.equal(await memberList.locator('[data-list-row]:visible').count(), 1, 'member alias search matches');
+  await memberSearch.fill(previousMemberAlias);
+  assert.equal(await memberList.locator('.member-name-input[name="' + secondPageId + '"]').isVisible(), false, 'replaced alias must not match the renamed member');
+  await memberSearch.fill('10.88.99.101');
+  assert.equal(await memberList.locator('[data-list-row]:visible').count(), 1, 'assigned IP search matches');
+  assert.equal(await memberList.locator('[data-list-row]:visible .member-name-input').getAttribute('name'), 'bb00000001');
+  const settings = page.locator('#network-settings');
+  assert.equal(await settings.getAttribute('open'), null);
+  await page.locator('a[href="#network-settings"]').click();
+  await settings.locator('.config-grid').waitFor({state: 'visible'});
+  assert.notEqual(await settings.getAttribute('open'), null, 'settings link expands disclosure');
+  await settings.locator('summary').focus();
+  await settings.locator('summary').press('Enter');
+  assert.equal(await settings.getAttribute('open'), null, 'Enter collapses disclosure');
+  assert.equal(await settings.locator('.config-grid').isVisible(), false);
+  await settings.locator('summary').press('Enter');
+  assert.equal(await settings.locator('.config-grid').isVisible(), true, 'Enter reopens disclosure');
+  const noJs = await browser.newContext({javaScriptEnabled: false, storageState: await context.storageState(), viewport: {width: 390, height: 844}});
+  try {
+    const noJsPage = await noJs.newPage();
+    await noJsPage.goto(base + '/controller/networks?lang=en');
+    assert.equal(await noJsPage.locator('[data-list-row]:visible').count(), 12, 'no-JS network list keeps all rows visible');
+    await noJsPage.goto(detail + '?lang=en');
+    assert.equal(await noJsPage.locator('#members [data-list-row]:visible').count(), 12, 'no-JS member list keeps all rows visible');
+  } finally { await noJs.close(); }
+  pass('12 real networks/members: bilingual search, empty results, pagination, monitor lists and second-page edits persist');
   await page.setViewportSize({width:390,height:844});await page.reload();
   await page.locator('.navbar-toggle').click();await page.locator('#appNavigation.in').waitFor({state:'visible'});
   await page.locator('#appNavigation a[href="/controller/networks"]').click();await page.waitForURL('**/controller/networks');

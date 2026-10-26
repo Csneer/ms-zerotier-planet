@@ -66,7 +66,7 @@ function member$(arg) {
   return memberFields.get(arg);
 }
 member$.post = (url,body) => {const callbacks={}; const req={body,done(fn){callbacks.done=fn;return this;},fail(fn){callbacks.fail=fn;return this;},always(fn){callbacks.always=fn;return this;},resolve(ok){callbacks[ok?'done':'fail']();callbacks.always();}};memberRequests.push(req);return req;};
-const memberScript=template.split('    script.\n')[1].split('\n    .table-responsive')[0];
+const memberScript=template.split('    script.\n')[1].split('\n    .list-toolbar')[0];
 vm.runInNewContext(memberScript, {$:member$});
 const changeName=member$('.member-name-input').handlers.change;
 const first={name:'first',value:'one',defaultValue:'old'},second={name:'second',value:'two',defaultValue:'old'};

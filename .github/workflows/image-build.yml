@@ -19,6 +19,7 @@ on:
       - root-manage.sh
       - tests/**
       - patch/**
+      - third_party/**
       - docs/**
       - examples/**
       - README.md
@@ -42,6 +43,7 @@ on:
       - root-manage.sh
       - tests/**
       - patch/**
+      - third_party/**
       - docs/**
       - examples/**
       - README.md
@@ -68,7 +70,8 @@ permissions:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
+  # Keep installed deployments on the existing package after the repository rename.
+  IMAGE_NAME: ${{ github.repository_owner }}/ms-zerotier-planet
 
 jobs:
   validate:
@@ -186,6 +189,10 @@ jobs:
             -v "$GITHUB_WORKSPACE:/repo:ro" -w /repo \
             -e NODE_PATH=/opt/ztncui/src/node_modules \
             zerotier-planet:ci-test tests/root-diagnostics-render.cjs
+          docker run --rm --network none --entrypoint node \
+            -v "$GITHUB_WORKSPACE:/repo:ro" -w /repo \
+            -e NODE_PATH=/opt/ztncui/src/node_modules \
+            zerotier-planet:ci-test tests/monitor-focus.cjs
 
       - uses: actions/setup-node@v6
         with:

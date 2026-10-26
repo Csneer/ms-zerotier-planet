@@ -2,12 +2,8 @@ extends login_layout
 
 block login_content
   .auth-heading
-    span.eyebrow= t('front.eyebrow')
     h1= t('front.title')
     p= t('front.description')
   a.btn.btn-primary.btn-lg.btn-block(href='/login')
-    span.glyphicon.glyphicon-log-in(aria-hidden='true')
+    +app_icon('log-in')
     |  #{t('front.open')}
-  .auth-footnote
-    span.status-dot
-    | #{t('front.footnote')}

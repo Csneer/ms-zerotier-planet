@@ -6,7 +6,8 @@ const pug = require('pug');
 const language = require('../patch/uiLanguage');
 const rootStatus = require('../patch/rootStatus');
 const source = fs.readFileSync(require.resolve('../patch/roots_panel.pug'), 'utf8');
-const render = pug.compile(source + '\n+roots_panel(topology, [])\n');
+const render = pug.compile(source + '\n+roots_panel(topology, [], compact)\n');
+const visible = html => html.replace(/<details\b[^>]*>[\s\S]*?<\/details>/g, '');
 for (const lang of ['zh-CN', 'en']) {
   const req = {query: {lang}, path: '/controller'};
   language(req, {locals: {}, cookie() {}}, () => {});
@@ -20,8 +21,14 @@ for (const lang of ['zh-CN', 'en']) {
     topology.hostDiagnostics = {state, collectedAt: 1792800000000, policy: {active: true, serviceEnabled: true, allowedPeers: ['198.51.100.99'], allowedEndpoints: ['198.51.100.99/9994']}, allowedRoots: [{id: '2222222222', responding: false}], restartRisk: true};
     const html = render({topology, t: req.t, formatAge: String});
     assert.ok(html.includes(req.t('monitor.host_state_' + state)));
-    assert.ok(html.includes(req.t('monitor.host_restart_risk')));
-    assert.ok(html.includes(req.t('monitor.root_probe_only')));
+    assert.ok(visible(html).includes(req.t('monitor.host_restart_risk')), 'restart risks stay outside disclosures');
+    assert.ok(visible(html).includes(req.t('monitor.host_state_' + state)));
+    const compactHtml = render({topology, compact: true, t: req.t, formatAge: String});
+    assert.ok(compactHtml.includes(req.t('monitor.host_restart_risk')));
+    assert.ok(compactHtml.includes(req.t('monitor.root_probe_only')));
+    assert.ok(!compactHtml.includes('monitor-root-item'));
+    assert.ok(compactHtml.includes('/controller/monitor#root-topology'));
+    assert.ok(visible(html).includes(req.t('monitor.root_probe_only')));
     assert.ok(html.includes('198.51.100.99/9994'));
     assert.ok(html.includes('./manage.sh diagnose --install-timer'));
     assert.ok(!html.includes('monitor.host_'));
@@ -46,6 +53,11 @@ for (const lang of ['zh-CN', 'en']) {
   assert.ok(localHtml.includes(req.t('monitor.root_state_local_unverified')));
   assert.ok(localHtml.includes(req.t('monitor.root_local_scope')));
   delete topology.hostDiagnostics;
-  assert.ok(render({topology, t: req.t, formatAge: String}).includes(req.t('monitor.host_state_unknown')));
+  assert.ok(visible(render({topology, t: req.t, formatAge: String})).includes(req.t('ux.host_unknown')));
+  topology.worldId = 1;
+  topology.runtimeWorldId = 2;
+  assert.ok(visible(render({topology, t: req.t, formatAge: String})).includes(req.t('monitor.world_version_mismatch')));
+  topology.hostDiagnostics = {state: 'absent'};
+  assert.ok(visible(render({topology, t: req.t, formatAge: String})).includes(req.t('ux.host_absent')));
 }
 console.log('PASS: shared Root panel renders diagnostic states and incident warning in Chinese and English');

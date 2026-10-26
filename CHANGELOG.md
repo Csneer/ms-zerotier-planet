@@ -7,6 +7,14 @@
 - Read-only diagnostics for the known host Root drain policy, with optional minute-by-minute systemd collection and explicit missing, stale, restricted and single-path warnings in the dashboard and monitoring page.
 - First-class IPv4/IPv6 Root endpoints: fresh installs may be IPv4-only, IPv6-only or dual-stack, signed multi-root worlds retain IPv6 endpoint validation, and the Root monitor shows service/probe evidence by address family.
 
+### Changed
+
+- Refocus the Web console with light neutral surfaces, a shorter sign-in entry, three dashboard metrics, compact task actions, and secondary administration details.
+- Put member management before network configuration; settings remain available in a collapsed section with a direct entry link.
+- Add progressively enhanced search and 10-row pagination to network and member lists, retaining existing input state and showing all rows when JavaScript is unavailable.
+- Use manual monitoring refresh and collapsible detailed diagnostics while keeping important path, policy and World warnings visible. Intentional single-Root deployments show a neutral no-standby status.
+- Vendor a fixed-commit Reicon outline SVG subset with its MIT license and source mapping. Adopt spacing and component presentation references from Beautiful UI without introducing a client framework or remote assets.
+
 ### Fixed
 
 - Root failover readiness now requires an observation from the service instance; an independent probe reaching a Root no longer hides an unreachable Controller upstream.
@@ -97,5 +105,5 @@ First project release; earlier unversioned changes are collected here without in
 - Optional probe state is mounted read-only and its local API token is never exposed in the Web response.
 - Controller standby startup refuses missing/staged/fenced guards, stale Moon files, Root membership of a Controller-only identity and non-capability images.
 
-[1.1.0]: https://github.com/Csneer/ms-zerotier-planet/releases/tag/v1.1.0
-[1.0.0]: https://github.com/Csneer/ms-zerotier-planet/releases/tag/v1.0.0
+[1.1.0]: https://github.com/Csneer/zerotier-planet-ms/releases/tag/v1.1.0
+[1.0.0]: https://github.com/Csneer/zerotier-planet-ms/releases/tag/v1.0.0

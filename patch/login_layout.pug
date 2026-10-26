@@ -1,17 +1,15 @@
 extends head_layout
 
-block nav_login
-  a(href='/login')
-    span.glyphicon.glyphicon-log-in(aria-hidden='true')
-    span.nav-label= t('nav.sign_in')
+block app_navigation
+  header.auth-navigation
+    a(href=language_url(lang === 'zh-CN' ? 'en' : 'zh-CN') title=t('language.switch'))= lang === 'zh-CN' ? 'English' : '中文'
 
 block body_content
   main#main-content.auth-shell
     .auth-backdrop
     .auth-card
       .auth-brand
-        span.brand-mark ZT
+        span.brand-mark(aria-hidden='true') ZT
         div
           strong ZeroTier Planet
-          small= t('app.private_control_center')
       block login_content

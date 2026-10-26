@@ -29,7 +29,7 @@ gh api user --jq .login
 git remote -v
 ```
 
-确认有效作者、提交者均为上述仓库身份，GitHub 登录账号为 `Csneer`，远端为 `Csneer/ms-zerotier-planet`。Git 作者配置不等于推送认证；有其他账号、环境变量覆盖或错误远端时，先修正该仓库使用的身份及认证再提交。
+确认有效作者、提交者均为上述仓库身份，GitHub 登录账号为 `Csneer`，远端为 `Csneer/zerotier-planet-ms`。Git 作者配置不等于推送认证；有其他账号、环境变量覆盖或错误远端时，先修正该仓库使用的身份及认证再提交。
 
 ## 发布步骤
 

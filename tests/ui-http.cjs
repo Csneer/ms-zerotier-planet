@@ -51,10 +51,10 @@ async function endpointProbePages(cookie) {
     assert.equal(response.status, 200, 'endpoint probe state must never make the monitor return 500');
     const html = await response.text();
     assert.ok(!html.includes('monitor.endpoint_probe'), 'endpoint probe strings must be translated');
-    const section = (html.match(/<section\b[^>]*>[\s\S]*?<\/section>/g) || [])
+    const section = (html.match(/<details\b[^>]*>[\s\S]*?<\/details>/g) || [])
       .find(value => value.includes('<h2>' + words[lang].title + '</h2>'));
     assert.ok(section, 'monitor must render the translated endpoint probe heading');
-    assert.ok(section.includes(words[lang].description), 'TCP-only purpose must be explained');
+    assert.match(section, /<summary\b/, 'TCP probes remain accessible through a native disclosure');
     return section;
   }
   function row(section, name, state) {

@@ -55,7 +55,7 @@ config/                # 完整目录：端点/端口记录、external planet、
 ## 准备新工作区
 
 ```bash
-git clone https://github.com/Csneer/ms-zerotier-planet.git /opt/ms-zerotier-planet
+git clone https://github.com/Csneer/zerotier-planet-ms.git /opt/ms-zerotier-planet
 cd /opt/ms-zerotier-planet
 ```
 

@@ -4,11 +4,10 @@ include roots_panel
 block content
   .page-heading
     div
-      span.eyebrow= t('monitor.eyebrow')
       h1= t('monitor.title')
-      p= t('monitor.description')
+      p= t('ux.monitor_snapshot', {time: monitor && monitor.generatedAt || '—'})
     a.btn.btn-default(href='/controller/monitor')
-      span.glyphicon.glyphicon-refresh(aria-hidden='true')
+      +app_icon('refresh')
       |  #{t('common.refresh')}
 
   if error
@@ -23,59 +22,8 @@ block content
         strong= t('monitor.bridge_warning', {count: monitor.summary.bridgeMemberCount})
         p= t('monitor.bridge_warning_desc')
 
-    .monitor-summary-grid
-      .stat-card.monitor-stat
-        .stat-icon
-          span.glyphicon.glyphicon-hdd(aria-hidden='true')
-        .stat-content
-          span.stat-label= t('monitor.private_root')
-          strong(class=monitor.service.planetMatches && monitor.service.unexpectedPlanetCount === 0 ? 'text-success' : 'text-danger')= monitor.service.planetMatches && monitor.service.unexpectedPlanetCount === 0 ? t('monitor.healthy') : t('monitor.abnormal')
-      .stat-card.monitor-stat
-        .stat-icon
-          span.glyphicon.glyphicon-signal(aria-hidden='true')
-        .stat-content
-          span.stat-label= t('monitor.planet_reachable')
-          strong #{monitor.summary.planetReachableCount} / #{monitor.summary.planetObservedCount}
-          if monitor.summary.planetUnknownCount
-            small.monitor-path-meta #{monitor.summary.planetUnknownCount} #{t('monitor.communication_unknown_short')}
-      .stat-card.monitor-stat
-        .stat-icon
-          span.glyphicon.glyphicon-resize-small(aria-hidden='true')
-        .stat-content
-          span.stat-label= t('monitor.probe_direct')
-          strong= monitor.probe.available ? monitor.summary.probeDirectCount : '—'
-      .stat-card.monitor-stat
-        .stat-icon
-          span.glyphicon.glyphicon-random(aria-hidden='true')
-        .stat-content
-          span.stat-label= t('monitor.probe_relay')
-          strong= monitor.probe.available ? monitor.summary.probeRelayCount : '—'
-
-    nav.monitor-section-nav(aria-label=t('monitor.title'))
-      a(href='#root-topology')
-        span.glyphicon.glyphicon-share-alt(aria-hidden='true')
-        |  #{t('monitor.root_topology')}
-      if monitor.communication
-        a(href='#network-health')
-          span.glyphicon.glyphicon-globe(aria-hidden='true')
-          |  #{t('monitor.network_health')}
-      a(href='#endpoint-probes')
-        span.glyphicon.glyphicon-transfer(aria-hidden='true')
-        |  #{t('monitor.endpoint_probes')}
-      a(href='#service-status')
-        span.glyphicon.glyphicon-tasks(aria-hidden='true')
-        |  #{t('monitor.service_status')}
-      a(href='#service-traffic')
-        span.glyphicon.glyphicon-dashboard(aria-hidden='true')
-        |  #{t('monitor.traffic')}
-      a(href='#member-paths')
-        span.glyphicon.glyphicon-user(aria-hidden='true')
-        |  #{t('monitor.member_paths')}
-
-    +roots_panel(topology, uiListeners)
-
     if monitor.communication
-      section#network-health.surface-card.table-card.monitor-network-card
+      section#network-health.surface-card.table-card.monitor-network-card(data-list data-list-summary=t('ux.list_count'))
         .card-heading.card-heading-padded
           div
             h2= t('monitor.network_health')
@@ -100,6 +48,8 @@ block content
           .detail-item
             span= t('monitor.communication_risk')
             strong #{monitor.communication.oldVersionCount} #{t('monitor.communication_old')} · #{monitor.communication.bridgeCount} #{t('monitor.communication_bridge')}
+        .list-toolbar(data-list-controls hidden)
+          input.form-control(type='search' data-list-search placeholder=t('ux.search_networks') aria-label=t('ux.search_networks'))
         .table-responsive
           table.table.app-table.monitor-table
             thead
@@ -112,7 +62,7 @@ block content
             tbody
               each network in monitor.networkStats
                 - const networkClass = network.state === 'healthy' ? 'is-direct' : ['degraded', 'partial'].includes(network.state) ? 'is-relay' : 'is-unknown';
-                tr
+                tr(data-list-row data-search=[network.name, network.nwid].join(' '))
                   td
                     strong= network.name || network.nwid
                     code.monitor-member-id= network.nwid
@@ -143,123 +93,19 @@ block content
               else
                 tr
                   td.empty-table-cell(colspan='5')= t('monitor.no_networks')
-        p.monitor-footnote= t('monitor.communication_scope_note')
+        p.list-empty(data-list-empty hidden)= t('ux.no_results')
+        .list-pagination(data-list-controls hidden)
+          output(data-list-count aria-live='polite')
+          .list-pagination-actions
+            button.btn.btn-default.btn-sm(type='button' data-list-prev)= t('ux.previous')
+            button.btn.btn-default.btn-sm(type='button' data-list-next)= t('ux.next')
+        details.scope-disclosure
+          summary= t('ux.scope_details')
+          p.monitor-footnote= t('monitor.communication_scope_note')
 
-    section#endpoint-probes.surface-card.table-card.monitor-network-card
-      .card-heading.card-heading-padded
-        div
-          h2= t('monitor.endpoint_probes')
-          p= t('monitor.endpoint_probes_desc')
-        if monitor.endpointProbes && monitor.endpointProbes.available && monitor.endpointProbes.configuredCount
-          span.status-pill(class=monitor.endpointProbes.failedCount ? 'is-offline' : 'is-online')
-            span.status-dot
-            | #{monitor.endpointProbes.reachableCount} / #{monitor.endpointProbes.configuredCount} #{t('monitor.endpoint_probe_reachable_short')}
-        else if monitor.endpointProbes && monitor.endpointProbes.configured && !monitor.endpointProbes.available
-          span.status-pill.is-offline
-            span.status-dot
-            | #{t('monitor.endpoint_probe_config_error_short')}
-        else if monitor.endpointProbes && monitor.endpointProbes.configured
-          span.status-pill.is-online
-            span.status-dot
-            | #{t('monitor.endpoint_probe_empty_short')}
-        else
-          span.status-pill.is-offline
-            span.status-dot
-            | #{t('monitor.endpoint_probe_unconfigured')}
-      if !monitor.endpointProbes || !monitor.endpointProbes.configured
-        .alert.alert-info= t('monitor.endpoint_probe_unconfigured_desc')
-      else if !monitor.endpointProbes.available
-        .alert.alert-warning= t('monitor.endpoint_probe_config_error', {code: monitor.endpointProbes.errorCode || '—'})
-      else
-        .table-responsive
-          table.table.app-table.monitor-table
-            thead
-              tr
-                th= t('monitor.endpoint_probe_name')
-                th= t('monitor.endpoint_probe_address')
-                th= t('monitor.endpoint_probe_state')
-                th= t('monitor.endpoint_probe_latency')
-                th= t('monitor.endpoint_probe_error')
-            tbody
-              each endpoint in monitor.endpointProbes.results
-                tr
-                  td
-                    strong= endpoint.name
-                    if endpoint.enabled === false
-                      small.monitor-path-meta= t('monitor.endpoint_probe_disabled')
-                  td
-                    code.monitor-path= endpoint.addressLabel + ':' + endpoint.port
-                  td
-                    span.path-badge(class=endpoint.state === 'reachable' ? 'is-direct' : endpoint.state === 'disabled' ? 'is-self' : 'is-unknown')= t('monitor.endpoint_probe_state_' + endpoint.state)
-                  td= endpoint.latencyMs === null ? '—' : endpoint.latencyMs + ' ms'
-                  td
-                    if endpoint.errorCode
-                      code= endpoint.errorCode
-                    else
-                      span.muted-text= t('common.none')
-              else
-                tr
-                  td.empty-table-cell(colspan='5')= t('monitor.endpoint_probe_empty')
-        p.monitor-footnote= t('monitor.endpoint_probe_scope_note')
+    +roots_panel(topology, uiListeners)
 
-    .row.monitor-card-row
-      .col-md-6
-        section#service-status.surface-card.monitor-card
-          .card-heading
-            div
-              h2= t('monitor.service_status')
-              p= t('monitor.generated_at', {time: monitor.generatedAt})
-          .detail-grid
-            .detail-item
-              span= t('dashboard.node_address')
-              code= monitor.service.address
-            .detail-item
-              span= t('dashboard.zt_version')
-              strong= monitor.service.version
-            .detail-item
-              span= t('monitor.planet_hash')
-              strong= monitor.service.planetMatches ? t('monitor.consistent') : t('monitor.inconsistent')
-            .detail-item
-              span= t('monitor.unexpected_roots')
-              strong= monitor.service.unexpectedPlanetCount === null ? '—' : monitor.service.unexpectedPlanetCount
-            .detail-item
-              span= t('dashboard.tcp_fallback')
-              strong= monitor.service.tcpFallbackActive ? t('dashboard.active') : t('dashboard.inactive')
-            .detail-item
-              span= t('monitor.ui_uptime')
-              strong= formatAge(monitor.service.uptimeSeconds * 1000)
-      .col-md-6
-        section#service-traffic.surface-card.monitor-card
-          .card-heading
-            div
-              h2= t('monitor.traffic')
-              p= t('monitor.traffic_desc')
-          if monitor.metrics.available
-            .detail-grid
-              .detail-item
-                span= t('monitor.udp_rx')
-                strong= formatBytes(monitor.metrics.traffic.udpRx)
-                small= monitor.metrics.rates.traffic ? formatRate(monitor.metrics.rates.traffic.udpRx, 'B') : t('monitor.rate_waiting')
-              .detail-item
-                span= t('monitor.udp_tx')
-                strong= formatBytes(monitor.metrics.traffic.udpTx)
-                small= monitor.metrics.rates.traffic ? formatRate(monitor.metrics.rates.traffic.udpTx, 'B') : t('monitor.rate_waiting')
-              .detail-item
-                span= t('monitor.tcp_rx')
-                strong= formatBytes(monitor.metrics.traffic.tcpRx)
-              .detail-item
-                span= t('monitor.tcp_tx')
-                strong= formatBytes(monitor.metrics.traffic.tcpTx)
-              .detail-item
-                span= t('monitor.packet_rx')
-                strong= monitor.metrics.rates.packets ? formatRate(monitor.metrics.rates.packets.rx, 'pkt') : t('monitor.rate_waiting')
-              .detail-item
-                span= t('monitor.packet_tx')
-                strong= monitor.metrics.rates.packets ? formatRate(monitor.metrics.rates.packets.tx, 'pkt') : t('monitor.rate_waiting')
-          else
-            .alert.alert-info= t('monitor.metrics_waiting')
-
-    section#member-paths.surface-card.table-card.monitor-member-card
+    section#member-paths.surface-card.table-card.monitor-member-card(data-list data-list-summary=t('ux.list_count'))
       .card-heading.card-heading-padded
         div
           h2= t('monitor.member_paths')
@@ -272,6 +118,8 @@ block content
           span.status-pill.is-offline
             span.status-dot
             | #{t('monitor.probe_unavailable')}
+      .list-toolbar(data-list-controls hidden)
+        input.form-control(type='search' data-list-search placeholder=t('ux.search_members') aria-label=t('ux.search_members'))
       .table-responsive
         table.table.app-table.monitor-table
           thead
@@ -283,7 +131,7 @@ block content
               th= t('monitor.risk')
           tbody
             each member in monitor.members
-              tr
+              tr(data-list-row data-search=[member.name, member.id, member.planet.path, member.probe.path].concat(member.networks.map(network => network.name + ' ' + network.nwid)).join(' '))
                 td
                   strong= member.name || member.id
                   if member.name
@@ -328,22 +176,128 @@ block content
             else
               tr
                 td.empty-table-cell(colspan='5')= t('monitor.no_members')
+      p.list-empty(data-list-empty hidden)= t('ux.no_results')
+      .list-pagination(data-list-controls hidden)
+        output(data-list-count aria-live='polite')
+        .list-pagination-actions
+          button.btn.btn-default.btn-sm(type='button' data-list-prev)= t('ux.previous')
+          button.btn.btn-default.btn-sm(type='button' data-list-next)= t('ux.next')
 
-    p.monitor-footnote= t('monitor.relay_limit_note')
+    details.scope-disclosure
+      summary= t('ux.scope_details')
+      p.monitor-footnote= t('monitor.relay_limit_note')
 
-    script.
-      (function() {
-        var refreshTimer;
-        var refreshDelay = 10000;
-        function scheduleRefresh() {
-          window.clearTimeout(refreshTimer);
-          refreshTimer = window.setTimeout(function() {
-            if (document.hidden) return;
-            window.location.reload();
-          }, refreshDelay);
-        }
-        document.addEventListener('visibilitychange', function() {
-          if (!document.hidden) scheduleRefresh();
-        });
-        scheduleRefresh();
-      }());
+    details#endpoint-probes.surface-card.table-card.monitor-network-card.monitor-disclosure
+      summary.card-heading.card-heading-padded
+        div
+          h2= t('monitor.endpoint_probes')
+        if monitor.endpointProbes && monitor.endpointProbes.available && monitor.endpointProbes.configuredCount
+          span.status-pill(class=monitor.endpointProbes.failedCount ? 'is-offline' : 'is-online')
+            span.status-dot
+            | #{monitor.endpointProbes.reachableCount} / #{monitor.endpointProbes.configuredCount} #{t('monitor.endpoint_probe_reachable_short')}
+        else if monitor.endpointProbes && monitor.endpointProbes.configured && !monitor.endpointProbes.available
+          span.status-pill.is-offline
+            span.status-dot
+            | #{t('monitor.endpoint_probe_config_error_short')}
+        else if monitor.endpointProbes && monitor.endpointProbes.configured
+          span.status-pill.is-online
+            span.status-dot
+            | #{t('monitor.endpoint_probe_empty_short')}
+        else
+          span.status-pill.is-unknown
+            | #{t('monitor.endpoint_probe_unconfigured')}
+      p.monitor-footnote= t('monitor.endpoint_probes_desc')
+      if !monitor.endpointProbes || !monitor.endpointProbes.configured
+        .alert.alert-info= t('monitor.endpoint_probe_unconfigured_desc')
+      else if !monitor.endpointProbes.available
+        .alert.alert-warning= t('monitor.endpoint_probe_config_error', {code: monitor.endpointProbes.errorCode || '—'})
+      else
+        .table-responsive
+          table.table.app-table.monitor-table
+            thead
+              tr
+                th= t('monitor.endpoint_probe_name')
+                th= t('monitor.endpoint_probe_address')
+                th= t('monitor.endpoint_probe_state')
+                th= t('monitor.endpoint_probe_latency')
+                th= t('monitor.endpoint_probe_error')
+            tbody
+              each endpoint in monitor.endpointProbes.results
+                tr
+                  td
+                    strong= endpoint.name
+                    if endpoint.enabled === false
+                      small.monitor-path-meta= t('monitor.endpoint_probe_disabled')
+                  td
+                    code.monitor-path= endpoint.addressLabel + ':' + endpoint.port
+                  td
+                    span.path-badge(class=endpoint.state === 'reachable' ? 'is-direct' : endpoint.state === 'disabled' ? 'is-self' : 'is-unknown')= t('monitor.endpoint_probe_state_' + endpoint.state)
+                  td= endpoint.latencyMs === null ? '—' : endpoint.latencyMs + ' ms'
+                  td
+                    if endpoint.errorCode
+                      code= endpoint.errorCode
+                    else
+                      span.muted-text= t('common.none')
+              else
+                tr
+                  td.empty-table-cell(colspan='5')= t('monitor.endpoint_probe_empty')
+        p.monitor-footnote= t('monitor.endpoint_probe_scope_note')
+
+    details.monitor-disclosure.surface-card.monitor-service-details
+      summary= t('ux.service_details')
+      .row.monitor-card-row
+        .col-md-6
+          section#service-status.surface-card.monitor-card
+            .card-heading
+              div
+                h2= t('monitor.service_status')
+                p= t('monitor.generated_at', {time: monitor && monitor.generatedAt || '—'})
+            .detail-grid
+              .detail-item
+                span= t('dashboard.node_address')
+                code= monitor.service.address
+              .detail-item
+                span= t('dashboard.zt_version')
+                strong= monitor.service.version
+              .detail-item
+                span= t('monitor.planet_hash')
+                strong= monitor.service.planetMatches ? t('monitor.consistent') : t('monitor.inconsistent')
+              .detail-item
+                span= t('monitor.unexpected_roots')
+                strong= monitor.service.unexpectedPlanetCount === null ? '—' : monitor.service.unexpectedPlanetCount
+              .detail-item
+                span= t('dashboard.tcp_fallback')
+                strong= monitor.service.tcpFallbackActive ? t('dashboard.active') : t('dashboard.inactive')
+              .detail-item
+                span= t('monitor.ui_uptime')
+                strong= formatAge(monitor.service.uptimeSeconds * 1000)
+        .col-md-6
+          section#service-traffic.surface-card.monitor-card
+            .card-heading
+              div
+                h2= t('monitor.traffic')
+                p= t('monitor.traffic_desc')
+            if monitor.metrics.available
+              .detail-grid
+                .detail-item
+                  span= t('monitor.udp_rx')
+                  strong= formatBytes(monitor.metrics.traffic.udpRx)
+                  small= monitor.metrics.rates.traffic ? formatRate(monitor.metrics.rates.traffic.udpRx, 'B') : t('monitor.rate_waiting')
+                .detail-item
+                  span= t('monitor.udp_tx')
+                  strong= formatBytes(monitor.metrics.traffic.udpTx)
+                  small= monitor.metrics.rates.traffic ? formatRate(monitor.metrics.rates.traffic.udpTx, 'B') : t('monitor.rate_waiting')
+                .detail-item
+                  span= t('monitor.tcp_rx')
+                  strong= formatBytes(monitor.metrics.traffic.tcpRx)
+                .detail-item
+                  span= t('monitor.tcp_tx')
+                  strong= formatBytes(monitor.metrics.traffic.tcpTx)
+                .detail-item
+                  span= t('monitor.packet_rx')
+                  strong= monitor.metrics.rates.packets ? formatRate(monitor.metrics.rates.packets.rx, 'pkt') : t('monitor.rate_waiting')
+                .detail-item
+                  span= t('monitor.packet_tx')
+                  strong= monitor.metrics.rates.packets ? formatRate(monitor.metrics.rates.packets.tx, 'pkt') : t('monitor.rate_waiting')
+            else
+              .alert.alert-info= t('monitor.metrics_waiting')
