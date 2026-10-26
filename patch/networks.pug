@@ -11,24 +11,21 @@ block content
         span.glyphicon.glyphicon-th-large(aria-hidden='true')
         |  #{networks.length}
       a.btn.btn-primary.btn-lg(href='/controller/network/create')
-        span.glyphicon.glyphicon-plus(aria-hidden='true')
+        +app_icon('plus')
         |  #{t('nav.new_network')}
 
   if error
     .alert.alert-danger= error
   else if !networks.length
     .empty-state
-      span.glyphicon.glyphicon-globe
+      +app_icon('globe')
       h3= t('networks.empty_title')
       p= t('networks.empty_description')
       a.btn.btn-primary(href='/controller/network/create')= t('network.create_button')
   else
-    .surface-card.table-card.network-list-card
-      .list-toolbar
-        div
-          strong= t('networks.title')
-          small= t('networks.description')
-        span.list-toolbar-hint= t('common.actions')
+    .surface-card.table-card.network-list-card(data-list data-list-summary=t('ux.list_count'))
+      .list-toolbar(data-list-controls hidden)
+        input.form-control(type='search' data-list-search placeholder=t('ux.search_networks') aria-label=t('ux.search_networks'))
       .table-responsive
         table.table.app-table
           thead
@@ -39,7 +36,7 @@ block content
           tbody
             each network in networks
               - const nwurl = '/controller/network/' + network.nwid;
-              tr.network-row
+              tr.network-row(data-list-row data-search=[network.name || '', network.nwid].join(' '))
                 td
                   a.network-name(href=nwurl)
                     span.network-avatar= (network.name || 'N').charAt(0).toUpperCase()
@@ -59,3 +56,9 @@ block content
                       aria-label=t('networks.delete_title')
                     )
                       span.glyphicon.glyphicon-trash(aria-hidden='true')
+      p.list-empty(data-list-empty hidden)= t('ux.no_results')
+      .list-pagination(data-list-controls hidden)
+        output(data-list-count aria-live='polite')
+        .list-pagination-actions
+          button.btn.btn-default.btn-sm(type='button' data-list-prev)= t('ux.previous')
+          button.btn.btn-default.btn-sm(type='button' data-list-next)= t('ux.next')

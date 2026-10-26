@@ -47,7 +47,7 @@ df -h .
 使用已审核的项目版本或 digest。下面的 `IMAGE_REF` 只是变量，不要原样当作镜像名提交：
 
 ```bash
-git clone https://github.com/Csneer/ms-zerotier-planet.git /opt/ms-zerotier-planet
+git clone https://github.com/Csneer/zerotier-planet-ms.git /opt/ms-zerotier-planet
 cd /opt/ms-zerotier-planet
 
 IMAGE_REF=ghcr.io/csneer/ms-zerotier-planet:v1.1.0

@@ -2,7 +2,6 @@ extends login_layout
 
 block login_content
   .auth-heading
-    span.eyebrow= t('login.eyebrow')
     h1= t('login.title')
     p= t('login.description')
 
@@ -17,12 +16,12 @@ block login_content
       label(for='username')= t('login.username')
       .input-group.input-group-lg
         span.input-group-addon
-          i.glyphicon.glyphicon-user
+          +app_icon('user')
         input#username.form-control(type='text' name='username' placeholder=t('login.username_placeholder') autocomplete='username' required=true autofocus=true)
     .form-group
       label(for='password')= t('login.password')
       .input-group.input-group-lg
         span.input-group-addon
-          i.glyphicon.glyphicon-lock
+          +app_icon('lock')
         input#password.form-control(type='password' name='password' placeholder=t('login.password_placeholder') autocomplete='current-password' required=true)
     button.btn.btn-primary.btn-lg.btn-block(type='submit')= t('login.button')

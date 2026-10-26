@@ -59,6 +59,7 @@ COPY patch/ztncui-roots.patch /tmp/ztncui-roots.patch
 RUN cd /opt/ztncui && patch -l -p1 < /tmp/ztncui-roots.patch
 COPY patch/downloadsController.js /opt/ztncui/src/controllers/downloadsController.js
 COPY patch/monitoringController.js /opt/ztncui/src/controllers/monitoringController.js
+COPY patch/ui-focus.js /opt/ztncui/src/public/javascripts/ui-focus.js
 COPY patch/ui-modern.css /opt/ztncui/src/public/stylesheets/ui-modern.css
 COPY patch/uiLanguage.js /opt/ztncui/src/uiLanguage.js
 COPY patch/uiStatus.js /opt/ztncui/src/uiStatus.js
@@ -113,6 +114,7 @@ RUN set -eux; \
 
 COPY --from=mkworld-builder /src/ZeroTierOne/attic/world/mkworld /usr/local/libexec/mkworld
 COPY --from=ztncui-builder /opt/ztncui /opt/ztncui
+COPY third_party/reicon /usr/share/zerotier-planet/reicon
 COPY patch/entrypoint.sh /usr/local/bin/entrypoint.sh
 COPY patch/healthcheck.sh /usr/local/bin/healthcheck.sh
 LABEL io.ms-zerotier-planet.controller-standby="1"

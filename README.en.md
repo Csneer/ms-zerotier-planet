@@ -1,11 +1,11 @@
-# ms-zerotier-planet
+# zerotier-planet-ms
 
 [中文](README.md)
 
 <div align="center">
 
-[![CI](https://github.com/Csneer/ms-zerotier-planet/actions/workflows/image-build.yml/badge.svg)](https://github.com/Csneer/ms-zerotier-planet/actions/workflows/image-build.yml)
-[![Latest release](https://img.shields.io/github/v/release/Csneer/ms-zerotier-planet?display_name=tag)](https://github.com/Csneer/ms-zerotier-planet/releases)
+[![CI](https://github.com/Csneer/zerotier-planet-ms/actions/workflows/image-build.yml/badge.svg)](https://github.com/Csneer/zerotier-planet-ms/actions/workflows/image-build.yml)
+[![Latest release](https://img.shields.io/github/v/release/Csneer/zerotier-planet-ms?display_name=tag)](https://github.com/Csneer/zerotier-planet-ms/releases)
 
 <h2>Put your ZeroTier entry point back in your hands.</h2>
 
@@ -21,7 +21,7 @@
 
 ## In one sentence
 
-`ms-zerotier-planet` packages a maintainable ZeroTier Planet, Root, Controller, and Web console. You keep control of the network entry point, member authorization, and virtual addresses; clients continue to use any ZeroTier build that supports replacing its `planet` file, while SSH, RDP, HTTP, databases, and other services remain unchanged.
+`zerotier-planet-ms` packages a maintainable ZeroTier Planet, Root, Controller, and Web console. You keep control of the network entry point, member authorization, and virtual addresses; clients continue to use any ZeroTier build that supports replacing its `planet` file, while SSH, RDP, HTTP, databases, and other services remain unchanged.
 
 ```text
 your devices and private services  ─────  private ZeroTier network  ─────  your Planet + Root
@@ -43,8 +43,8 @@ your devices and private services  ─────  private ZeroTier network  �
 Use a Linux host with a stable public IPv4 address or globally routable IPv6 address. Allow `9994/udp` for the address family you use, and install Docker Engine 24+, Compose v2, Bash, Git, Python 3, `jq`, and GNU coreutils.
 
 ```bash
-git clone https://github.com/Csneer/ms-zerotier-planet.git
-cd ms-zerotier-planet
+git clone https://github.com/Csneer/zerotier-planet-ms.git
+cd zerotier-planet-ms
 ./install.sh --ip YOUR_PUBLIC_IPV4 --data-dir /srv/zerotier-planet
 ```
 
@@ -117,8 +117,8 @@ The installer does not install Docker, change the kernel or firewall, or write D
 Build from your checkout (replace the example addresses with the server's real public addresses):
 
 ```bash
-git clone https://github.com/Csneer/ms-zerotier-planet.git
-cd ms-zerotier-planet
+git clone https://github.com/Csneer/zerotier-planet-ms.git
+cd zerotier-planet-ms
 ./install.sh --ip 203.0.113.10 --data-dir /srv/zerotier-planet
 ```
 

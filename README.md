@@ -1,11 +1,11 @@
-# ms-zerotier-planet
+# zerotier-planet-ms
 
 [English](README.en.md)
 
 <div align="center">
 
-[![CI](https://github.com/Csneer/ms-zerotier-planet/actions/workflows/image-build.yml/badge.svg)](https://github.com/Csneer/ms-zerotier-planet/actions/workflows/image-build.yml)
-[![Latest release](https://img.shields.io/github/v/release/Csneer/ms-zerotier-planet?display_name=tag)](https://github.com/Csneer/ms-zerotier-planet/releases)
+[![CI](https://github.com/Csneer/zerotier-planet-ms/actions/workflows/image-build.yml/badge.svg)](https://github.com/Csneer/zerotier-planet-ms/actions/workflows/image-build.yml)
+[![Latest release](https://img.shields.io/github/v/release/Csneer/zerotier-planet-ms?display_name=tag)](https://github.com/Csneer/zerotier-planet-ms/releases)
 
 <h2>把 ZeroTier 的入口，放回自己手里。</h2>
 
@@ -21,7 +21,7 @@
 
 ## 一句话
 
-`ms-zerotier-planet` 将 ZeroTier Planet、Root、Controller 和 Web 管理台收进一个可维护的部署里。你保留网络入口、成员授权和虚拟地址的控制权；接入端继续使用支持替换 `planet` 文件的 ZeroTier 客户端，SSH、RDP、HTTP、数据库等服务无需改造。
+`zerotier-planet-ms` 将 ZeroTier Planet、Root、Controller 和 Web 管理台收进一个可维护的部署里。你保留网络入口、成员授权和虚拟地址的控制权；接入端继续使用支持替换 `planet` 文件的 ZeroTier 客户端，SSH、RDP、HTTP、数据库等服务无需改造。
 
 ```text
 家用设备 / 内网服务  ─────  私有 ZeroTier 网络  ─────  自建 Planet + Root
@@ -43,8 +43,8 @@
 准备一台带固定公网 IPv4 或全球单播 IPv6 的 Linux 主机，放行对应地址族的 `9994/udp`，并安装 Docker Engine 24+、Compose v2、Bash、Git、Python 3、`jq` 与 GNU coreutils。
 
 ```bash
-git clone https://github.com/Csneer/ms-zerotier-planet.git
-cd ms-zerotier-planet
+git clone https://github.com/Csneer/zerotier-planet-ms.git
+cd zerotier-planet-ms
 ./install.sh --ip YOUR_PUBLIC_IPV4 --data-dir /srv/zerotier-planet
 ```
 
@@ -121,8 +121,8 @@ ssh -N -L 3443:127.0.0.1:3443 user@server
 从源码本地构建（将示例地址换成服务器真实公网地址）：
 
 ```bash
-git clone https://github.com/Csneer/ms-zerotier-planet.git
-cd ms-zerotier-planet
+git clone https://github.com/Csneer/zerotier-planet-ms.git
+cd zerotier-planet-ms
 ./install.sh --ip 203.0.113.10 --data-dir /srv/zerotier-planet
 ```
 

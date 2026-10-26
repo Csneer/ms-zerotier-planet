@@ -2,11 +2,11 @@
 
 ## Source of truth
 
-Status: Active · 2026-10-17
+Status: Active · 2026-10-26
 
 Product surfaces: authenticated ZeroTier Planet control center, public landing/sign-in shell, dashboard, network list/detail, monitoring, downloads, and administrator pages.
 
-Evidence reviewed: `patch/head_layout.pug`, `patch/controller_layout.pug`, `patch/dashboard.pug`, `patch/monitor.pug`, `patch/networks.pug`, `patch/network_detail.pug`, `patch/downloads.pug`, `patch/ui-modern.css`, `patch/uiLanguage.js`, existing UI regression tests, and the README operational limits. The interface is server-rendered Pug with Bootstrap 3 compatibility and local CSS patches. No existing design brief or component library was present.
+Evidence reviewed: `patch/head_layout.pug`, `patch/controller_layout.pug`, `patch/dashboard.pug`, `patch/monitor.pug`, `patch/networks.pug`, `patch/network_detail.pug`, `patch/downloads.pug`, `patch/ui-modern.css`, `patch/uiLanguage.js`, existing UI regression tests, and the README operational limits. The interface is server-rendered Pug with Bootstrap 3 compatibility and local CSS patches. This document records the current design contract. Reicon supplies a pinned local icon subset; Beautiful UI is a reference for restrained surfaces, spacing, and component hierarchy, not an imported framework.
 
 ## Brand
 
@@ -31,7 +31,7 @@ Success signals: fewer wrapped headings and clipped tables at 360–1440px, visi
 
 ## Information architecture
 
-Primary navigation: Overview, Monitor, Networks, New network, Downloads, Administrators. The brand returns to Overview. Network detail groups summary, configuration, and members; advanced raw data remains collapsed. Monitor groups service summary, Root topology, network communication, endpoint probes, member paths, and traffic. Downloads explains Planet/Moon usage before the file table.
+Primary navigation: Overview, Monitor, Networks, New network, Downloads, Administrators. The brand returns to Overview. The public entry shows the brand once, one value heading, one supporting sentence, and a sign-in action. Overview has three network/member metrics, compact actions, a Root status summary, and secondary administration details. Network detail puts members before configuration; its eight configuration cards live in a collapsed settings section, reachable from a settings link beside easy setup. Monitor prioritizes current service and Root status, then network communication, endpoint probes, member paths, and traffic; detailed diagnostics remain collapsed while important warnings remain visible. Downloads explains Planet/Moon usage before the file table.
 
 ## Design principles
 
@@ -43,11 +43,11 @@ Primary navigation: Overview, Monitor, Networks, New network, Downloads, Adminis
 
 ## Visual language
 
-Use a cool slate canvas with white surfaces, one indigo action color, cyan topology accents, green healthy states, amber attention states, and red destructive/error states. Tokens live in `patch/ui-modern.css` as CSS custom properties. Use a 4/8px spacing rhythm, 12–18px surface radii, restrained shadows, and sentence-case headings. Prefer the existing local Bootstrap Glyphicons until a vendored icon set is introduced; icons supplement labels and never replace them. Motion is limited to short hover/focus transitions and respects reduced-motion preferences.
+Use a light neutral canvas with white surfaces, quiet borders, restrained action color, green healthy states, amber attention states, and red destructive/error states. Avoid large promotional heroes, repeated section labels, and decorative gradients in operational views. Tokens live in `patch/ui-modern.css` as CSS custom properties. Use a 4/8px spacing rhythm, 12–18px surface radii, restrained shadows, and sentence-case headings. Use the local Reicon outline subset in `patch/icons.pug`, pinned to upstream commit `fe6975391b80c808c25d98b2a21081cf180482f9`. Its MIT license and source mapping live in `third_party/reicon/`; unmigrated icons retain the local Bootstrap Glyphicons fallback. Icons supplement labels and never replace them. Beautiful UI (https://www.beautifului.dev/) informs spacing and component presentation without adding a framework or remote assets. Motion is limited to short hover/focus transitions and respects reduced-motion preferences.
 
 ## Components
 
-Shared primitives: app shell and responsive nav, brand mark, page heading, surface card, stat card, action card, status/path badge, alert/notice, form field, switch, responsive table, empty state, confirmation card, advanced details, and language toggle. Each component has base, hover/focus, disabled, success/attention/error, and mobile behavior. Variants should be expressed with classes such as `.is-online`, `.is-offline`, `.is-unknown`, `.btn-primary`, and `.btn-default`, not page-specific inline styles.
+Shared primitives: app shell and responsive nav, brand mark, page heading, surface card, stat card, action card, status/path badge, alert/notice, form field, switch, responsive table, empty state, confirmation card, advanced details, search/pagination controls, and language toggle. Each component has base, hover/focus, disabled, success/attention/error, and mobile behavior. Variants should be expressed with classes such as `.is-online`, `.is-offline`, `.is-unknown`, `.btn-primary`, and `.btn-default`, not page-specific inline styles.
 
 ## Accessibility
 
@@ -62,11 +62,11 @@ Target WCAG 2.1 AA for contrast and keyboard use. Keep visible `:focus-visible` 
 
 ## Interaction states
 
-Every data surface must support healthy, unavailable, stale/unknown, empty, error, and disabled states. Auto-save toggles show pending/failed feedback without losing the user's selection. Refresh is a normal action and should remain discoverable on mobile. Downloads show file type, size, modification time, checksum, and a single obvious action.
+Every data surface must support healthy, unavailable, stale/unknown, empty, error, and disabled states. Auto-save fields retain pending/saved/error feedback; failed authorization changes restore the previous value. Network and member lists progressively enhance to search with 10 matching rows per page. Filtering and pagination hide existing rows instead of removing DOM nodes, preserving inputs and pending save state. Search, count, pagination, and no-results controls are hidden until JavaScript initializes; without JavaScript all rows remain available. Monitoring uses an explicit manual refresh rather than periodically reloading the page. Refresh remains discoverable on mobile, and opening a settings anchor expands the matching disclosure. Downloads show file type, size, modification time, checksum, and a single obvious action.
 
 ## Content voice
 
-Use direct, operational language. Explain what a status proves and what it does not prove. Keep Chinese and English keys paired in `patch/uiLanguage.js`; avoid inventing stronger availability claims than the observation supports.
+Use direct, operational language. Use one title per task and avoid repeating a card label in its subtitle or action. Explain what a status proves and what it does not prove. An intentionally single-Root deployment is a neutral “no standby” state; missing backup capacity alone must not become a fault warning. Real path, policy, and World consistency warnings remain visible outside disclosures. Keep Chinese and English keys paired in `patch/uiLanguage.js`; avoid inventing stronger availability claims than the observation supports.
 
 ## Implementation constraints
 
@@ -74,8 +74,8 @@ The app is built from patched upstream ztncui templates and served by Node/Expre
 
 ## Open questions
 
-- [ ] Owner: product · Decide whether to vendor a dedicated icon set after the current local icon pass; impact: visual consistency and long-term asset ownership.
-- [ ] Owner: operations · Provide a disposable signed test instance URL for screenshot-level visual QA; impact: live page evidence beyond template and CSS checks.
+- [ ] Owner: implementation · Complete the current pass's bilingual browser checks across mobile, tablet, and desktop, including search/pagination, member save failures, disclosures, and keyboard navigation. Template checks alone are not visual acceptance.
+- [ ] Owner: operations · External IPv6 Root reachability still needs a real external host; local UI or container checks cannot establish public network behavior.
 
 ## Root address-family observations
 

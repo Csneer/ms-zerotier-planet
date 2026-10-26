@@ -23,103 +23,118 @@ mixin root_observation(observation)
   else if observation.path
     code.monitor-path= observation.path
 
-mixin roots_panel(topology, listeners)
+mixin roots_panel(topology, listeners, compact)
   section#root-topology.surface-card.table-card.monitor-root-card
     .card-heading.card-heading-padded
       div
         h2= t('monitor.root_topology')
-        p= t('monitor.root_topology_desc', {count: topology.available ? topology.roots.length : '—'})
       if topology.available
         span.status-pill(class=topology.reachableCount === topology.roots.length ? 'is-online' : 'is-offline')
           span.status-dot
           | #{topology.reachableCount} / #{topology.roots.length} #{t('monitor.roots_reachable')}
-    .monitor-topology-meta
-      .detail-item
-        span= t('monitor.controller_single')
-        code= topology.controllerId || '—'
-      .detail-item
-        span= t('monitor.world_version')
-        code #{topology.worldId || '—'} / #{topology.timestamp || '—'}
-        if topology.available && (topology.worldId !== topology.runtimeWorldId || topology.timestamp !== topology.runtimeTimestamp)
-          small.text-danger= t('monitor.world_version_mismatch')
-      .detail-item
-        span= t('monitor.publish_mode')
-        strong= t('monitor.mode_' + topology.mode)
-      .detail-item
-        span= t('monitor.runtime_role')
-        strong= t('monitor.role_' + (topology.role || 'controller_root'))
-      if topology.failover
-        .detail-item
-          span= t('monitor.failover_readiness')
-          span.path-badge(class=topology.failover.ready ? 'is-direct' : 'is-unknown')= t('monitor.failover_state_' + topology.failover.state)
-          small.monitor-path-meta #{topology.failover.remoteReadyCount} / #{topology.failover.remoteRootCount} #{t('monitor.failover_remote_ready')}
-      .detail-item
-        span= t('monitor.http_listeners')
-        each listener in listeners
-          - const listenerHost = listener.host.includes(':') ? '[' + listener.host + ']' : listener.host;
-          code.monitor-listener(class=listener.state === 'listening' ? 'text-success' : 'text-danger') #{listenerHost}:#{listener.port}
-          small= t('monitor.listener_' + listener.state)
     - const host = topology.hostDiagnostics || {state: 'unknown', policy: null};
-    .alert.monitor-alert(class=host.state === 'absent' ? 'alert-info' : 'alert-warning')
-      strong= t('monitor.host_diagnostics')
-      p= t('monitor.host_state_' + host.state)
-      if host.collectedAt
-        small.monitor-path-meta= t('monitor.host_collected', {time: new Date(host.collectedAt).toISOString()})
-      if host.policy
-        p= t('monitor.host_policy_status', {active: t('monitor.host_' + (host.policy.active ? 'yes' : 'no')), enabled: t('monitor.host_' + (host.policy.serviceEnabled ? 'yes' : 'no'))})
-        if host.policy.allowedEndpoints && host.policy.allowedEndpoints.length
-          p= t('monitor.host_allowed')
-          each endpoint in host.policy.allowedEndpoints
-            code.monitor-path= endpoint
-        each root in host.allowedRoots
-          code.monitor-path #{root.id} · #{t(root.responding ? 'monitor.root_state_reachable' : 'monitor.root_state_unseen')}
-        if host.restartRisk
-          p.text-danger= t('monitor.host_restart_risk')
-      p= t('monitor.host_diagnose_help')
-      code.monitor-path ./manage.sh diagnose --install-timer
-      p.monitor-footnote= t('monitor.host_scope')
-    if topology.available
-      if topology.warnings && topology.warnings.probeOnlyRootIds && topology.warnings.probeOnlyRootIds.length
+    - const hostAttention = host.restartRisk || !['unknown', 'absent'].includes(host.state);
+    .root-attention
+      if hostAttention
         .alert.alert-warning.monitor-alert
-          strong= t('monitor.root_probe_only')
-          p= t('monitor.root_probe_only_desc', {ids: topology.warnings.probeOnlyRootIds.join(', ')})
-      if topology.failover && !topology.failover.ready
+          strong= t('monitor.host_diagnostics')
+          p= t('monitor.host_state_' + host.state)
+          if host.restartRisk
+            p.text-danger= t('monitor.host_restart_risk')
+      else
+        p.root-host-summary= t('ux.host_' + host.state)
+      if topology.available && (topology.worldId !== topology.runtimeWorldId || topology.timestamp !== topology.runtimeTimestamp)
+        .alert.alert-danger.monitor-alert= t('monitor.world_version_mismatch')
+      if topology.available && topology.warnings
+        if topology.warnings.probeOnlyRootIds && topology.warnings.probeOnlyRootIds.length
+          .alert.alert-warning.monitor-alert
+            strong= t('monitor.root_probe_only')
+            p= t('monitor.root_probe_only_desc', {ids: topology.warnings.probeOnlyRootIds.join(', ')})
+        if topology.warnings.negativeLatencyCount
+          .alert.alert-warning.monitor-alert
+            strong= t('monitor.root_latency_warning')
+            p= t('monitor.root_latency_warning_desc', {count: topology.warnings.negativeLatencyCount})
+      if topology.available && topology.failover && topology.failover.state === 'single_root'
+        p.root-host-summary= t('ux.single_root')
+      else if topology.available && topology.failover && !topology.failover.ready
         .alert.alert-warning.monitor-alert
           strong= t('monitor.failover_attention')
           p= t('monitor.failover_attention_desc', {state: t('monitor.failover_state_' + topology.failover.state), count: topology.failover.remoteRootCount})
-      if topology.warnings && topology.warnings.negativeLatencyCount
-        .alert.alert-warning.monitor-alert
-          strong= t('monitor.root_latency_warning')
-          p= t('monitor.root_latency_warning_desc', {count: topology.warnings.negativeLatencyCount})
-      .monitor-root-grid
-        each root in topology.roots
-          .monitor-root-item(class=root.local ? 'is-local' : '')
-            .monitor-root-heading
-              div
-                span.eyebrow= root.local ? t('monitor.local_root') : t('monitor.remote_root')
-                code= root.id
-              if root.local
-                span.path-badge.is-self= t('monitor.this_instance')
-            .monitor-root-detail
-              span= t('monitor.root_endpoints')
-              div
-                each endpoint in root.endpoints
-                  .monitor-endpoint-row
-                    span.monitor-family-label= endpoint.includes(':') ? 'IPv6' : 'IPv4'
-                    code.monitor-path= endpoint
-            .monitor-root-detail
-              span= t('monitor.root_server_view')
-              div
-                +root_observation(root.service)
-            .monitor-root-detail
-              span= t('monitor.root_probe')
-              div
-                +root_observation(root.probe)
-            .monitor-root-detail
-              span= t('monitor.root_failover_evidence')
-              div
-                span.path-badge(class=root.ready ? 'is-direct' : 'is-unknown')= t('monitor.root_evidence_' + root.evidence)
-    else
-      .card-heading-padded
+      if !topology.available
         .alert.alert-warning= t('monitor.root_metadata_unavailable')
-    p.monitor-footnote= t('monitor.root_limit_note', {seconds: topology.recentReceiveSeconds})
+    if compact
+      a.root-monitor-link(href='/controller/monitor#root-topology')= t('ux.root_details_link')
+    else
+      details.monitor-disclosure.root-diagnostics
+        summary= t('ux.root_details')
+        .disclosure-body
+          .monitor-topology-meta
+            .detail-item
+              span= t('monitor.controller_single')
+              code= topology.controllerId || '—'
+            .detail-item
+              span= t('monitor.world_version')
+              code #{topology.worldId || '—'} / #{topology.timestamp || '—'}
+            .detail-item
+              span= t('monitor.publish_mode')
+              strong= t('monitor.mode_' + topology.mode)
+            .detail-item
+              span= t('monitor.runtime_role')
+              strong= t('monitor.role_' + (topology.role || 'controller_root'))
+            if topology.failover
+              .detail-item
+                span= t('monitor.failover_readiness')
+                span.path-badge(class=topology.failover.ready ? 'is-direct' : 'is-unknown')= t('monitor.failover_state_' + topology.failover.state)
+                small.monitor-path-meta #{topology.failover.remoteReadyCount} / #{topology.failover.remoteRootCount} #{t('monitor.failover_remote_ready')}
+            .detail-item
+              span= t('monitor.http_listeners')
+              each listener in listeners
+                - const listenerHost = listener.host.includes(':') ? '[' + listener.host + ']' : listener.host;
+                code.monitor-listener(class=listener.state === 'listening' ? 'text-success' : 'text-danger') #{listenerHost}:#{listener.port}
+                small= t('monitor.listener_' + listener.state)
+          if topology.available
+            .monitor-root-grid
+              each root in topology.roots
+                .monitor-root-item(class=root.local ? 'is-local' : '')
+                  .monitor-root-heading
+                    div
+                      span.eyebrow= root.local ? t('monitor.local_root') : t('monitor.remote_root')
+                      code= root.id
+                    if root.local
+                      span.path-badge.is-self= t('monitor.this_instance')
+                  .monitor-root-detail
+                    span= t('monitor.root_endpoints')
+                    div
+                      each endpoint in root.endpoints
+                        .monitor-endpoint-row
+                          span.monitor-family-label= endpoint.includes(':') ? 'IPv6' : 'IPv4'
+                          code.monitor-path= endpoint
+                  .monitor-root-detail
+                    span= t('monitor.root_server_view')
+                    div
+                      +root_observation(root.service)
+                  .monitor-root-detail
+                    span= t('monitor.root_probe')
+                    div
+                      +root_observation(root.probe)
+                  .monitor-root-detail
+                    span= t('monitor.root_failover_evidence')
+                    div
+                      span.path-badge(class=root.ready ? 'is-direct' : 'is-unknown')= t('monitor.root_evidence_' + root.evidence)
+          p.monitor-footnote= t('monitor.root_limit_note', {seconds: topology.recentReceiveSeconds})
+      details.monitor-disclosure.host-diagnostics
+        summary= t('ux.host_details')
+        .disclosure-body
+          if host.collectedAt
+            p.monitor-path-meta= t('monitor.host_collected', {time: new Date(host.collectedAt).toISOString()})
+          if host.policy
+            p= t('monitor.host_policy_status', {active: t('monitor.host_' + (host.policy.active ? 'yes' : 'no')), enabled: t('monitor.host_' + (host.policy.serviceEnabled ? 'yes' : 'no'))})
+            if host.policy.allowedEndpoints && host.policy.allowedEndpoints.length
+              p= t('monitor.host_allowed')
+              each endpoint in host.policy.allowedEndpoints
+                code.monitor-path= endpoint
+            each root in host.allowedRoots || []
+              code.monitor-path #{root.id} · #{t(root.responding ? 'monitor.root_state_reachable' : 'monitor.root_state_unseen')}
+          p= t('monitor.host_diagnose_help')
+          code.monitor-path ./manage.sh diagnose --install-timer
+          p.monitor-footnote= t('monitor.host_scope')

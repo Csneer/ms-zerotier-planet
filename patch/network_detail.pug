@@ -80,9 +80,6 @@ block net_content
   - const poolCount = Array.isArray(network.ipAssignmentPools) ? network.ipAssignmentPools.length : 0;
 
   section.surface-card.network-summary-card
-    .card-heading
-      div
-        h2= t('network.summary')
     .network-summary-grid
       .summary-item
         span.summary-label= t('network.access')
@@ -97,90 +94,26 @@ block net_content
       .summary-item
         span.summary-label= t('network.planet_reachable')
         strong #{planetReachableCount} / #{memberList.length}
-      .summary-item
-        span.summary-label= t('network.routes')
-        strong= routeCount
-      .summary-item
-        span.summary-label= t('network.pools')
-        strong= poolCount
 
-  section.surface-card.config-section
-    .card-heading
-      div
-        h2= t('network.configuration')
-        p= t('network.configuration_hint')
-    .config-grid
-      a.config-card(href=nwurl + '/private')
-        span.config-icon.action-violet
-          span.glyphicon.glyphicon-lock
-        span
-          strong= t('network.access_control')
-          small= t('network.access_control_desc')
-        span.glyphicon.glyphicon-chevron-right.config-arrow
-      a.config-card(href=nwurl + '/easy')
-        span.config-icon.action-green
-          span.glyphicon.glyphicon-flash
-        span
-          strong= t('networks.easy_setup')
-          small= t('network.easy_desc')
-        span.glyphicon.glyphicon-chevron-right.config-arrow
-      a.config-card(href=nwurl + '/routes')
-        span.config-icon.action-blue
-          span.glyphicon.glyphicon-random
-        span
-          strong= t('network.routes')
-          small= t('network.routes_desc')
-        span.glyphicon.glyphicon-chevron-right.config-arrow
-      a.config-card(href=nwurl + '/ipAssignmentPools')
-        span.config-icon.action-cyan
-          span.glyphicon.glyphicon-tasks
-        span
-          strong= t('network.pools')
-          small= t('network.pools_desc')
-        span.glyphicon.glyphicon-chevron-right.config-arrow
-      a.config-card(href=nwurl + '/v4AssignMode')
-        span.config-icon.action-blue
-          span.glyphicon.glyphicon-sort-by-order
-        span
-          strong= t('network.ipv4_mode')
-          small= t('network.ipv4_mode_desc')
-        span.glyphicon.glyphicon-chevron-right.config-arrow
-      a.config-card(href=nwurl + '/v6AssignMode')
-        span.config-icon.action-violet
-          span.glyphicon.glyphicon-sort-by-order-alt
-        span
-          strong= t('network.ipv6_mode')
-          small= t('network.ipv6_mode_desc')
-        span.glyphicon.glyphicon-chevron-right.config-arrow
-      a.config-card(href=nwurl + '/dns')
-        span.config-icon.action-cyan
-          span.glyphicon.glyphicon-link
-        span
-          strong= t('network.dns')
-          small= t('network.dns_desc')
-        span.glyphicon.glyphicon-chevron-right.config-arrow
-      a.config-card(href=nwurl + '/mtu')
-        span.config-icon.action-green
-          span.glyphicon.glyphicon-resize-horizontal
-        span
-          strong MTU · #{network.mtu}
-          small= t('network.mtu_desc')
-        span.glyphicon.glyphicon-chevron-right.config-arrow
+  .network-primary-actions
+    a.btn.btn-primary(href=nwurl + '/easy')= t('networks.easy_setup')
+    a.btn.btn-default(href='#network-settings')= t('network.configuration')
 
-  section#members.surface-card.table-card.member-section
+  section#members.surface-card.table-card.member-section(data-list data-list-summary=t('ux.list_count'))
     .card-heading.card-heading-padded
       div
-        h2 #{t('network.members_heading')} (#{memberList.length})
-        p= t('network.members_hint')
+        h2= t('network.members_heading')
+        if !memberList.length
+          p= t('network.members_hint')
       .member-header-actions
         span#members-save-status.inline-save-status(aria-live='polite' data-saving=t('common.saving') data-saved=t('common.saved') data-failed=t('common.save_failed'))
         a.btn.btn-default.btn-sm(href='')
-          span.glyphicon.glyphicon-refresh(aria-hidden='true')
+          +app_icon('refresh')
           |  #{t('common.refresh')}
 
-    .member-scope-note
-      span.glyphicon.glyphicon-info-sign(aria-hidden='true')
-      span= t('network.planet_scope_note')
+    details.scope-disclosure
+      summary= t('ux.scope_details')
+      p.monitor-footnote= t('network.planet_scope_note')
     if bridgeMemberCount
       .alert.alert-warning.member-bridge-warning
         strong= t('network.bridge_warning', {count: bridgeMemberCount})
@@ -246,6 +179,9 @@ block net_content
         });
       });
 
+    .list-toolbar(data-list-controls hidden)
+      input.form-control(type='search' data-list-search placeholder=t('ux.search_members') aria-label=t('ux.search_members'))
+
     .table-responsive
       table.table.app-table.member-table
         thead
@@ -268,7 +204,7 @@ block net_content
               - const preferredPath = paths.find(function(path) { return path.preferred === true; }) || paths[0];
               - const activityTimes = paths.reduce(function(values, path) { if (Number(path.lastReceive) > 0) values.push(Number(path.lastReceive)); if (Number(path.lastSend) > 0) values.push(Number(path.lastSend)); return values; }, []);
               - const lastActivityMs = activityTimes.length ? Math.max(0, Date.now() - Math.max.apply(Math, activityTimes)) : null;
-              tr
+              tr(data-list-row data-search=[member.id].concat(member.ipAssignments || []).join(' '))
                 td
                   if isPlanetReachable
                     span.member-status.is-online
@@ -320,6 +256,73 @@ block net_content
           else
             tr
               td.empty-table-cell(colspan='7')= t('network.no_members', {id: network.nwid})
+
+    p.list-empty(data-list-empty hidden)= t('ux.no_results')
+    .list-pagination(data-list-controls hidden)
+      output(data-list-count aria-live='polite')
+      .list-pagination-actions
+        button.btn.btn-default.btn-sm(type='button' data-list-prev)= t('ux.previous')
+        button.btn.btn-default.btn-sm(type='button' data-list-next)= t('ux.next')
+
+  details#network-settings.surface-card.config-section.monitor-disclosure
+    summary= t('network.configuration')
+    .config-grid
+      a.config-card(href=nwurl + '/private')
+        span.config-icon.action-violet
+          +app_icon('lock')
+        span
+          strong= t('network.access_control')
+          small= t('network.access_control_desc')
+        span.glyphicon.glyphicon-chevron-right.config-arrow
+      a.config-card(href=nwurl + '/easy')
+        span.config-icon.action-green
+          span.glyphicon.glyphicon-flash
+        span
+          strong= t('networks.easy_setup')
+          small= t('network.easy_desc')
+        span.glyphicon.glyphicon-chevron-right.config-arrow
+      a.config-card(href=nwurl + '/routes')
+        span.config-icon.action-blue
+          span.glyphicon.glyphicon-random
+        span
+          strong #{t('network.routes')} · #{routeCount}
+          small= t('network.routes_desc')
+        span.glyphicon.glyphicon-chevron-right.config-arrow
+      a.config-card(href=nwurl + '/ipAssignmentPools')
+        span.config-icon.action-cyan
+          span.glyphicon.glyphicon-tasks
+        span
+          strong #{t('network.pools')} · #{poolCount}
+          small= t('network.pools_desc')
+        span.glyphicon.glyphicon-chevron-right.config-arrow
+      a.config-card(href=nwurl + '/v4AssignMode')
+        span.config-icon.action-blue
+          span.glyphicon.glyphicon-sort-by-order
+        span
+          strong= t('network.ipv4_mode')
+          small= t('network.ipv4_mode_desc')
+        span.glyphicon.glyphicon-chevron-right.config-arrow
+      a.config-card(href=nwurl + '/v6AssignMode')
+        span.config-icon.action-violet
+          span.glyphicon.glyphicon-sort-by-order-alt
+        span
+          strong= t('network.ipv6_mode')
+          small= t('network.ipv6_mode_desc')
+        span.glyphicon.glyphicon-chevron-right.config-arrow
+      a.config-card(href=nwurl + '/dns')
+        span.config-icon.action-cyan
+          span.glyphicon.glyphicon-link
+        span
+          strong= t('network.dns')
+          small= t('network.dns_desc')
+        span.glyphicon.glyphicon-chevron-right.config-arrow
+      a.config-card(href=nwurl + '/mtu')
+        span.config-icon.action-green
+          span.glyphicon.glyphicon-resize-horizontal
+        span
+          strong MTU · #{network.mtu}
+          small= t('network.mtu_desc')
+        span.glyphicon.glyphicon-chevron-right.config-arrow
 
   details.surface-card.advanced-details
     summary

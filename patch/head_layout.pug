@@ -1,9 +1,11 @@
+include icons
+
 mixin nav_item(name, displayName, href, icon)
   - var isActive = !!(navigate && navigate.active === name)
   li(class=(isActive ? 'active' : ''))
     a(href=href class='app-nav-link' aria-current=(isActive ? 'page' : undefined))
       if icon
-        span.nav-icon.glyphicon(class='glyphicon-' + icon aria-hidden='true')
+        +app_icon(icon)
       span.nav-label= displayName
 
 mixin json_value(value)
@@ -24,32 +26,34 @@ html(lang=lang || 'zh-CN')
     link(rel='stylesheet' href='/stylesheets/ui-modern.css')
     script(src='/jqjs/jquery.min.js')
     script(src='/bsjs/bootstrap.min.js')
+    script(src='/javascripts/ui-focus.js' defer)
   body
     a.app-skip-link(href='#main-content')= lang === 'zh-CN' ? '跳转到内容' : 'Skip to content'
-    nav.navbar.navbar-inverse.navbar-fixed-top.app-navbar
-      .container-fluid.app-navbar-inner
-        .navbar-header
-          button.navbar-toggle.collapsed(type='button' data-toggle='collapse' data-target='#appNavigation' aria-expanded='false')
-            span.sr-only= t('nav.toggle')
-            span.icon-bar
-            span.icon-bar
-            span.icon-bar
-          a.navbar-brand.app-brand(href='/controller')
-            span.brand-mark ZT
-            span.brand-text
-              strong ZeroTier Planet
-              small= t('app.control_center')
-        .collapse.navbar-collapse#appNavigation
-          ul.nav.navbar-nav.app-nav
-            block nav_items
-          ul.nav.navbar-nav.navbar-right.app-nav
-            li.language-menu
-              a(href=language_url(lang === 'zh-CN' ? 'en' : 'zh-CN') title=t('language.switch'))
-                span.nav-icon.glyphicon.glyphicon-globe(aria-hidden='true')
-                span.nav-label= lang === 'zh-CN' ? t('language.english') : t('language.chinese')
-            li
-              block nav_login
-                a(href='/logout')
-                  span.nav-icon.glyphicon.glyphicon-log-out(aria-hidden='true')
-                  span.nav-label= t('nav.sign_out')
+    block app_navigation
+      nav.navbar.navbar-inverse.navbar-fixed-top.app-navbar
+        .container-fluid.app-navbar-inner
+          .navbar-header
+            button.navbar-toggle.collapsed(type='button' data-toggle='collapse' data-target='#appNavigation' aria-expanded='false')
+              span.sr-only= t('nav.toggle')
+              span.icon-bar
+              span.icon-bar
+              span.icon-bar
+            a.navbar-brand.app-brand(href='/controller')
+              span.brand-mark ZT
+              span.brand-text
+                strong ZeroTier Planet
+                small= t('app.control_center')
+          .collapse.navbar-collapse#appNavigation
+            ul.nav.navbar-nav.app-nav
+              block nav_items
+            ul.nav.navbar-nav.navbar-right.app-nav
+              li.language-menu
+                a(href=language_url(lang === 'zh-CN' ? 'en' : 'zh-CN') title=t('language.switch'))
+                  +app_icon('globe')
+                  span.nav-label= lang === 'zh-CN' ? t('language.english') : t('language.chinese')
+              li
+                block nav_login
+                  a(href='/logout')
+                    +app_icon('log-out')
+                    span.nav-label= t('nav.sign_out')
     block body_content
