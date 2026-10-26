@@ -67,7 +67,7 @@ ssh -N -L 3443:127.0.0.1:3443 user@server
 
 访问 `http://127.0.0.1:3443`，使用 `admin/password` 登录后立即修改密码。然后在 `Networks` 创建网络，在 `Downloads` 下载 `planet`，让客户端加入网络，再回到管理台授权成员。
 
-> **当前源码提示**：IPv6-only 安装和地址族迁移属于 Unreleased 改进，`v1.1.0` 镜像尚不包含。请使用当前 checkout 构建，或使用已验证包含这些改动的镜像；主机、防火墙和迁移验收见 [IPv6 Root 指南](docs/ipv6-roots.md)。
+> **版本提示**：IPv6-only 安装和地址族迁移已包含在 `v1.2.0` 镜像中。需要审查后续未发布改动时，请使用当前 checkout 构建；主机、防火墙和迁移验收见 [IPv6 Root 指南](docs/ipv6-roots.md)。
 
 ## 项目边界
 
@@ -369,11 +369,11 @@ git pull --ff-only
 
 ## 版本与镜像发布
 
-项目采用独立的 SemVer 版本（`vX.Y.Z`）；当前版本为 `v1.1.0`，对应镜像 `ghcr.io/csneer/ms-zerotier-planet:v1.1.0`。它与 ZeroTier `1.16.2` 等运行时版本不同。变更见 [CHANGELOG](CHANGELOG.md)，维护者的身份配置、打 tag 和 GitHub Release 步骤见[发布约定](docs/releasing.md)。
+项目采用独立的 SemVer 版本（`vX.Y.Z`）；当前版本为 `v1.2.0`，对应镜像 `ghcr.io/csneer/ms-zerotier-planet:v1.2.0`。它与 ZeroTier `1.16.2` 等运行时版本不同。变更见 [CHANGELOG](CHANGELOG.md)，维护者的身份配置、打 tag 和 GitHub Release 步骤见[发布约定](docs/releasing.md)。
 
 [image-build.yml](.github/workflows/image-build.yml) 校验脚本、Compose 和容器回归后，构建 `amd64`/`arm64` 并发布到 GHCR：
 
-- 正式 `vX.Y.Z` tag 使用该 tag 的 `.env.example` 中的 `ZT_VERSION`（`v1.1.0` 为 `1.16.2`），只发布对应项目版本镜像，不更新滚动标签。
+- 正式 `vX.Y.Z` tag 使用该 tag 的 `.env.example` 中的 `ZT_VERSION`（`v1.2.0` 为 `1.16.2`），只发布对应项目版本镜像，不更新滚动标签。
 - `main`/`master` 推送、每周计划任务和普通手动构建继续采用上游最新稳定 ZeroTier（手动构建可指定版本），生成 `latest`、ZeroTier 版本和 Git SHA 标签。
 - 需要固定实际部署内容时，记录并使用镜像 digest；版本 tag 本身不代表全部构建依赖均已锁定。
 

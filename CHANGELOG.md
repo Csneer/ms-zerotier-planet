@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## [1.2.0] - 2026-10-26
+
 ### Added
 
 - Read-only diagnostics for the known host Root drain policy, with optional minute-by-minute systemd collection and explicit missing, stale, restricted and single-path warnings in the dashboard and monitoring page.
@@ -9,6 +11,7 @@
 
 ### Changed
 
+- Update GitHub Actions dependencies to `actions/setup-node` v7 and `docker/login-action` v4.6.0.
 - Refocus the Web console with light neutral surfaces, a shorter sign-in entry, three dashboard metrics, compact task actions, and secondary administration details.
 - Put member management before network configuration; settings remain available in a collapsed section with a direct entry link.
 - Add progressively enhanced search and 10-row pagination to network and member lists, retaining existing input state and showing all rows when JavaScript is unavailable.
@@ -105,5 +108,6 @@ First project release; earlier unversioned changes are collected here without in
 - Optional probe state is mounted read-only and its local API token is never exposed in the Web response.
 - Controller standby startup refuses missing/staged/fenced guards, stale Moon files, Root membership of a Controller-only identity and non-capability images.
 
+[1.2.0]: https://github.com/Csneer/zerotier-planet-ms/releases/tag/v1.2.0
 [1.1.0]: https://github.com/Csneer/zerotier-planet-ms/releases/tag/v1.1.0
 [1.0.0]: https://github.com/Csneer/zerotier-planet-ms/releases/tag/v1.0.0

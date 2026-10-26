@@ -4,6 +4,8 @@
 
 项目版本与 ZeroTier 版本独立：`ghcr.io/csneer/ms-zerotier-planet:v1.0.0` 是项目镜像，而 `:1.16.2` 是跟随 ZeroTier 版本更新的滚动标签。
 
+仓库已更名为 `Csneer/zerotier-planet-ms`；GHCR 包名 `ghcr.io/csneer/ms-zerotier-planet` 为现有部署保留的兼容地址，发布和安装文档继续使用它，不要因仓库改名而替换已部署的镜像引用。
+
 ## 构建与镜像标签
 
 | 触发方式 | ZeroTier 版本来源 | 发布的镜像标签 |
