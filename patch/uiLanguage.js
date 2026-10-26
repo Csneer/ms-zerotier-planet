@@ -164,7 +164,7 @@ const messages = {
   'network.device': ['设备', 'Device'],
   'network.status': ['状态', 'Status'],
   'network.ip_assignment': ['IP 地址', 'IP assignment'],
-  'network.authorized': ['已授权', 'Authorized'],
+  'network.authorized': ['授权状态', 'Authorization'],
   'network.bridge': ['桥接', 'Bridge'],
   'network.connection': ['连接地址', 'Connection'],
   'network.planet_path': ['到 Planet 路径', 'Path to Planet'],
