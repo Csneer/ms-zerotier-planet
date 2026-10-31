@@ -1,409 +1,161 @@
-# zerotier-planet-ms
-
-[English](README.en.md)
-
 <div align="center">
 
-[![CI](https://github.com/Csneer/zerotier-planet-ms/actions/workflows/image-build.yml/badge.svg)](https://github.com/Csneer/zerotier-planet-ms/actions/workflows/image-build.yml)
-[![Latest release](https://img.shields.io/github/v/release/Csneer/zerotier-planet-ms?display_name=tag)](https://github.com/Csneer/zerotier-planet-ms/releases)
+# zerotier-planet-ms
 
-<h2>把 ZeroTier 的入口，放回自己手里。</h2>
+### 异地的设备，像在同一个局域网。
 
-<p><strong>自建 Planet · 可视化 Controller · IPv4 / IPv6 Root</strong></p>
+把家里的 NAS、随身电脑和云服务器连成一张**加密虚拟局域网**。
 
-<p>用一台低成本云主机，把家里的 NAS、开发机和云服务器接进同一张私有网络。</p>
+自建 ZeroTier Planet 与 Controller，在自己的控制台里管理接入、授权和地址。
 
-<p><a href="#60-秒快速开始">快速开始</a> · <a href="docs/ipv6-roots.md">IPv6 Root 指南</a> · <a href="docs/agent-install.md">Agent 安装指引</a> · <a href="CHANGELOG.md">变更日志</a></p>
+[![CI](https://github.com/Csneer/zerotier-planet-ms/actions/workflows/image-build.yml/badge.svg)](https://github.com/Csneer/zerotier-planet-ms/actions/workflows/image-build.yml) [![Release](https://img.shields.io/github/v/release/Csneer/zerotier-planet-ms?display_name=tag&color=334155)](https://github.com/Csneer/zerotier-planet-ms/releases)
+
+**[开始部署](#开始部署)** · **[看看控制台](#一张网一个控制台)** · **[方案对比](#选择适合你的组网方式)** · **[运维文档](docs/operations.md)** · **[English](README.en.md)**
 
 </div>
 
----
+<br>
 
-## 一句话
+![异地 NAS、电脑与云服务器通过 ZeroTier 加密互联；自建控制面管理接入，Root 在需要时提供中转](docs/assets/private-network.svg)
 
-`zerotier-planet-ms` 将 ZeroTier Planet、Root、Controller 和 Web 管理台收进一个可维护的部署里。你保留网络入口、成员授权和虚拟地址的控制权；接入端继续使用支持替换 `planet` 文件的 ZeroTier 客户端，SSH、RDP、HTTP、数据库等服务无需改造。
+<br>
 
-```text
-家用设备 / 内网服务  ─────  私有 ZeroTier 网络  ─────  自建 Planet + Root
-                                                          └─ Controller + Web 管理台
-```
+## 把内网服务带在身边
 
-## 为什么值得从这里开始
+出门以后，NAS 仍然是那个 IP；换一张网络，开发机依然可以 SSH；家里的服务和云上的应用，也可以通过同一张私有网络互访。
 
-| 低成本起步 | 清晰的控制面 | 留出扩展空间 |
-| --- | --- | --- |
-| 2 vCPU / 2 GiB 云主机即可开始，适合个人和小团队的低至中等流量。 | Planet、identity、网络、成员授权与虚拟 IP 都留在自己的基础设施上。 | 单 Root 起步，需要时增加独立 Root；支持 IPv4、IPv6 和双栈。 |
+`zerotier-planet-ms` 面向希望**自己维护 ZeroTier 网络基础设施**的个人、家庭实验室和小团队。设备加入同一网络并获得授权后，就能使用虚拟 IP 访问彼此的服务。NAS 面板、远程桌面、Git、数据库和自建应用，可以继续使用原来的客户端与协议，无需逐个改造成公网服务。
 
-- **可视化**：创建网络、授权成员、调整 MTU，登录后下载 `planet` / `.moon` 并核对 SHA-256。
-- **可迁移**：升级保留 identity 和签名链；配置、备份和恢复都有明确的非破坏性边界。
-- **可观测**：首页和连接监控共享 Controller / World / Root 拓扑，区分近期回应、过期路径和不可用探针。
+| 你想做什么 | 连上之后 |
+| :--- | :--- |
+| **在外访问家里的 NAS** | 通过虚拟 IP 打开面板、同步文件，家用宽带无需为每项服务配置公网端口映射。 |
+| **随时连接自己的工作站** | 从笔记本访问 SSH、RDP、开发环境；目标设备保持开机，服务监听与防火墙按需放行。 |
+| **打通家中、机房与云主机** | 让安装客户端的机器跨地域互联；已有整段内网可进一步规划路由或网关接入。 |
+| **搭建自己的小团队内网** | 集中授权设备、分配地址，按网络组织测试服务、协作工具和共享资源。 |
 
-## 60 秒快速开始
+**先连设备，再按需接入网段。** 客户端通常主动建立连接，利用 NAT 穿透争取直连；网络条件不允许时，使用中转路径。直连时，业务数据在设备之间传输，不需要全部绕行云主机。
 
-准备一台带固定公网 IPv4 或全球单播 IPv6 的 Linux 主机，放行对应地址族的 `9994/udp`，并安装 Docker Engine 24+、Compose v2、Bash、Git、Python 3、`jq` 与 GNU coreutils。
+<br>
+
+## 加密的是连接，掌握在你手里的是网络
+
+**设备间端到端加密。** 在 ZeroTier 的正常加密传输配置下，虚拟网络流量在端点加密、在对端解密，经 Root 中转也保持加密，Root 无法读取业务载荷。加密与身份认证由 [ZeroTier 协议](https://docs.zerotier.com/protocol) 提供，本项目负责把自建根节点、控制器与日常管理整合起来。
+
+**授权和网络配置由你管理。** 在自己的 Controller 创建网络、核对节点 ID、授权设备和管理虚拟地址；Planet 签名材料、服务端身份、配置和备份保存在自己的基础设施上。
+
+**公网入口收敛到组网层。** 自建 Root 提供可达的 UDP 端点，NAS、开发机等设备通过虚拟网络提供服务。无需为了访问每个应用，把它们分别开放到公网。
+
+这里的“加密局域网”指 **ZeroTier 端点之间的虚拟网络**。它不会自动加密网关后面的整个物理局域网，也不替代应用登录、SSH/HTTPS 或主机防火墙。更多协议范围与选型依据见[方案对比](docs/choosing-a-solution.md)。
+
+<br>
+
+## 一张网，一个控制台
+
+![ZeroTier Planet 控制台：示例 Home Lab 网络、设备别名、IP 分配与成员授权](docs/assets/console-zh-CN.png)
+
+<p align="center"><sub>当前 main 界面实拍 · 隔离演示实例与虚构设备 · 不包含真实部署数据</sub></p>
+
+**常用操作留在眼前，细节需要时再看。** 创建网络、授权成员、修改 MTU、下载 Planet，在同一个界面完成。点击成员可以查看版本、IP、授权和观测路径；较长的配置与诊断放进弹窗，页面保持紧凑。
+
+| 日常管理 | 遇到问题时 |
+| :--- | :--- |
+| 设备别名、成员搜索、分页与授权开关 | 区分服务实例和探针视角的 DIRECT / RELAY 观测 |
+| IPv4 / IPv6 地址分配、路由、DNS 与 MTU | 查看 Root 地址族、近期响应和 Planet 文件一致性 |
+| 登录后下载 Planet，并核对 SHA-256 | 点击版本、桥接等提示，查看原因与处理步骤 |
+| 中英文界面，桌面与手机均可操作 | 一致性备份、受检查的升级与恢复流程 |
+
+监控展示的是**具体观测点的证据**；“到 Root 可达”不等于任意两台设备都已直连。排查时可沿着[客户端与链路指引](docs/client-troubleshooting.md)继续验证。
+
+<br>
+
+## 从一台小云主机开始
+
+**2 vCPU / 2 GiB 可以作为部署起点。** 阿里云等云厂商的小规格 Linux 主机即可用于起步；优先使用预构建镜像，把机器留给运行服务，而非现场编译依赖。
+
+已有隔离容器实测：在 2 vCPU / 2 GiB 限制下完成登录、建网、授权、改名和移动端操作，流程结束时单次内存采样约 **69 MiB**。这证明管理服务可以轻量运行；中转吞吐仍取决于带宽、CPU、路径和并发，详见[可复现的容量记录](docs/capacity-benchmark.md)。
+
+- **IPv4、IPv6、双栈都是正式配置路径。** 每个 Root 至少有一个可达端点；IPv6-only Root 需要客户端与 Controller 具备相应的 IPv6 连通性。
+- **需要更多路径时，加入独立 Root。** 统一签名 Planet，Root 与 Controller 可分开部署。多 Root 提供路径冗余，Controller 接管按单活流程进行。
+- **数据跟着你走。** identity、网络、授权、Web 账户和签名材料可持久化、备份和迁移，保留自己的网络标识。
+
+[IPv6 Root](docs/ipv6-roots.md) · [多 Root 部署](docs/multi-root.md) · [Controller 迁移与备用](docs/controller-standby.md)
+
+<br>
+
+## 选择适合你的组网方式
+
+这些方案解决的问题有重叠，管理方式和使用重点不同。加密、P2P、自托管都不是本项目独有的能力。
+
+| 方案 | 主要用途 | 适合你的情况 |
+| :--- | :--- | :--- |
+| **zerotier-planet-ms** | 自建 ZeroTier Planet 与 Web 控制台 | 希望掌握 Root 与网络授权，能维护客户端 Planet。 |
+| [Tailscale](https://github.com/tailscale/tailscale) | WireGuard 组网，托管控制面 | 优先考虑省心接入、成熟客户端与身份管理。 |
+| [Headscale](https://github.com/juanfont/headscale) | 自托管 Tailscale 协调服务 | 保留 Tailscale 客户端，自行维护控制面与可选社区 UI。 |
+| [NetBird](https://github.com/netbirdio/netbird) | WireGuard 组网与 Web 策略管理 | 需要团队接入与集中访问控制，可托管或自托管。 |
+| [EasyTier](https://github.com/EasyTier/EasyTier) | 去中心化组网与子网代理 | 希望通过 CLI / GUI / Web 灵活组合节点与网关。 |
+| [frp](https://github.com/fatedier/frp) | TCP / UDP / HTTP(S) 服务发布 | 主要需要几个端口或域名服务，也可按需使用 XTCP。 |
+
+自托管范围、加密边界、移动端支持，以及 frp 实验性 VirtualNet 等细节见[完整选型说明](docs/choosing-a-solution.md)。资料核对于 **2026-10-31**。
+
+<br>
+
+## 开始部署
+
+准备一台有固定公网 IPv4 或全球单播 IPv6 的 Linux 主机，以及 **Docker Engine 24+、Compose v2、Bash、Git、Python 3、jq、GNU coreutils**。执行账户需有 Docker 和数据目录权限；为 Root 放行 `9994/udp`，双栈时检查两种地址族的规则。
+
+### 1. 启动服务
+
+下面拉取与本页界面对应、已通过 CI 的主分支构建，避免在小主机上编译。将 `YOUR_PUBLIC_IPV4` 换成真实公网地址：
 
 ```bash
 git clone https://github.com/Csneer/zerotier-planet-ms.git
 cd zerotier-planet-ms
-./install.sh --ip YOUR_PUBLIC_IPV4 --data-dir /srv/zerotier-planet
+./install.sh --ip YOUR_PUBLIC_IPV4 --data-dir /srv/zerotier-planet \
+  --pull --image ghcr.io/csneer/ms-zerotier-planet:sha-7308b49
 ```
 
-IPv6-only Root 或双栈 Root：
+**IPv6-only**：把 `--ip YOUR_PUBLIC_IPV4` 换为 `--ipv6 YOUR_PUBLIC_IPV6`；**双栈**：同时提供两个参数。已有部署先读[原地升级指南](docs/in-place-upgrade.md)，不要重复初始化。
 
-```bash
-# IPv6-only
-./install.sh --ipv6 YOUR_PUBLIC_IPV6 --data-dir /srv/zerotier-planet
+> 镜像选择：`sha-7308b49` 对应本页演示的[已验证提交](https://github.com/Csneer/zerotier-planet-ms/commit/7308b4911edb0f195724aa924053611382c01a02)；最新正式 Release 为 [`v1.2.0`](https://github.com/Csneer/zerotier-planet-ms/releases/tag/v1.2.0)，尚未包含成员弹窗等后续改动。正式部署可进一步固定 digest。完整[版本与镜像规则](docs/releasing.md)。
 
-# dual-stack
-./install.sh --ip YOUR_PUBLIC_IPV4 --ipv6 YOUR_PUBLIC_IPV6 \
-  --data-dir /srv/zerotier-planet
-```
+### 2. 打开自己的控制台
 
-安装后通过 SSH 隧道打开管理台：
+管理台默认监听服务器回环地址。在本机建立 SSH 隧道：
 
 ```bash
 ssh -N -L 3443:127.0.0.1:3443 user@server
 ```
 
-访问 `http://127.0.0.1:3443`，使用 `admin/password` 登录后立即修改密码。然后在 `Networks` 创建网络，在 `Downloads` 下载 `planet`，让客户端加入网络，再回到管理台授权成员。
+打开 **http://127.0.0.1:3443**，使用初始账号 `admin/password` 登录并立即修改密码。端口号 `3443` 不代表默认启用 HTTPS；远程管理使用 SSH 隧道或受信的 TLS 反向代理。
 
-> **版本提示**：IPv6-only 安装和地址族迁移已包含在 `v1.2.0` 镜像中。需要审查后续未发布改动时，请使用当前 checkout 构建；主机、防火墙和迁移验收见 [IPv6 Root 指南](docs/ipv6-roots.md)。
+### 3. 接入设备，访问服务
 
-## 项目边界
+1. 在控制台创建私有网络，配置地址池，记下 Network ID。
+2. 从「下载」获取 Planet，核对 SHA-256；桌面 / 服务器停止 ZeroTier 后替换文件再启动，移动端按客户端支持的导入方式处理。
+3. 客户端加入该 Network ID，在控制台核对节点 ID 并授权。
+4. 获得虚拟 IP 后，访问 NAS 面板、SSH 或远程桌面，验证你真正需要的服务。
 
-这是一个可以承载多种 TCP/UDP 服务的私有虚拟网络，不是只转发 HTTP 的临时隧道。公网地址、云安全组、主机防火墙和客户端 `planet` 分发仍由部署者负责；多 Root 提供路径冗余，但不等于 Controller 高可用或秒级切换。先从单 Root 验证真实客户端路径，再按 [多 Root 与切换方案](docs/multi-root.md) 扩容。
+[客户端路径与接入](docs/operations.md#客户端配置) · [Android / iOS 说明](docs/choosing-a-solution.md#客户端与移动端) · [交给 Agent 安装](docs/agent-install.md)
 
-> **适合**：自托管内网入口、家庭实验室、小团队开发环境、需要自己掌握 Planet 的跨地域网络。<br>
-> **不承诺**：固定吞吐、跨运营商必然直连，或在未验收的客户端上自动完成 Planet 替换。
+<br>
 
-## 二开维护内容
+## 长期运行，也有清晰的入口
 
-- ZeroTier `1.16.2`，版本通过 `.env` 和构建参数控制。
-- `host` 网络直通 ZeroTier UDP 热路径，避免 Docker NAT 和 userland proxy。
-- 新建网络默认 MTU `1280`，已有网络可在 Web 中修改 `1280–2800`。
-- 响应式 Web 仪表盘，集中管理网络、成员、MTU、用户和配置下载。
-- 登录后直接下载 `planet` 和 `.moon` 文件，并显示 SHA-256。
-- identity、Controller 数据、Web 用户和 session key 全部持久化。
-- 内置连接监控区分 Planet 服务器视角与可选本机探针视角，并展示 ZeroTier 流量指标。
-- 多 Root 面板显示切换准备度、World 一致性和每个备用 Root 的观测证据；只做安全观测，不自动改防火墙或强制切流。
-- 联合健康检查、进程监管、优雅退出和 Docker 日志轮转。
-- IP 或 ZeroTier 端口变化时保留 identity 与世界签名密钥，只重新签发 planet/moon。
-- 客户端版本、桥接与链路提示可在 Web 中查看处理建议，完整步骤见[客户端升级与排障](docs/client-troubleshooting.md)。
-- 支持同一 Planet 的多 Root：统一离线签名、独立 Root 身份及 Root-only 实例，详见[多 Root 与切换方案](docs/multi-root.md)。
-- 多 Root 不等于 Controller 高可用或秒级切换：两机隔离实测中一次自动恢复约需 245 秒，部署时应按客户端版本与真实路径重新验收。
-- 首页与连接监控共用 Controller / World / Root 拓扑，区分近期回应、过期路径和不可用探针；同一后台可监听回环及多个明确的 ZeroTier 地址。
-- 安装、升级、备份、恢复和卸载均使用非破坏性脚本；危险操作需要显式 `--yes`。
-- GitHub Actions 自动构建 `amd64`/`arm64`，并发布到本仓库对应的 GHCR。
-- 受限 2 vCPU / 2 GiB 实测与容量记录见[小规格云主机基准](docs/capacity-benchmark.md)；空载运行开销不能代表中转吞吐或成员上限。
+| 现在要做什么 | 从这里开始 |
+| :--- | :--- |
+| 配置参数、端口、监控、备份与恢复 | [运维手册](docs/operations.md) / [English](docs/operations.en.md) |
+| 让 Agent 代为安装并验收 | [Agent 安装指引](docs/agent-install.md) |
+| 接管已有部署，保留网络与身份 | [原地升级](docs/in-place-upgrade.md) |
+| 新增 Root、采用原生 systemd 部署 | [Root 接入](docs/root-onboarding.md) / [原生 Root](docs/native-root.md) |
+| 请求配置、版本提示、桥接或中转排障 | [客户端与链路排障](docs/client-troubleshooting.md) |
+| 了解发布内容、复现验证 | [CHANGELOG](CHANGELOG.md) / [浏览器回归](tests/browser/README.md) |
 
-## 环境要求
+现有网络和数据优先保留；`upgrade` 会准备镜像、生成一致性备份并等待健康检查。多 Root 不等于 Controller 自动高可用，镜像回退与签名 World 回退也有不同流程，具体操作请遵循对应指南。
 
-- 64 位 Linux，推荐 Debian 12、Ubuntu 22.04+ 或 Rocky Linux 9。
-- Docker Engine 24+。
-- Docker Compose v2。
-- Bash、Git、Python 3、`jq`、`coreutils`。
-- 固定或可控的公网 IPv4、IPv6，或两者同时存在；Root 至少需要一个地址族。
-- 云安全组和主机防火墙至少放行 `${ZT_PORT}/udp`，默认 `9994/udp`；双栈主机要同时放行 IPv4 和 IPv6。
+## 建立在成熟项目之上
 
-端口用途：
+本项目基于 [ZeroTierOne](https://github.com/zerotier/ZeroTierOne)、[ztncui](https://github.com/key-networks/ztncui) 和 [docker-zerotier-planet](https://github.com/xubiaolin/docker-zerotier-planet) 持续维护，重点是 **自建 Planet 的部署、管理体验与可验证运维**。它不是 ZeroTier 官方产品，也不声称重新发明底层网络协议。
 
-| 默认端口 | 协议 | 用途 | 建议暴露范围 |
-|---:|---|---|---|
-| 9994 | UDP | ZeroTier Planet Root 稳定端点 | 公网；每个 Root 的 UDP 端点必须放行 |
-| 9994 | TCP | ZeroTier 本地管理 API | 仅回环或受信来源；不要当作公网 HTTPS/业务入口 |
-| 3443 | TCP | Web 管理控制台 | 仅可信 IP、ZeroTier 网段或本机反代 |
+管理台应作为高权限内部服务使用，ztncui 上游的维护状态与各组件许可证见[运维手册](docs/operations.md#安全注意事项)及 [NOTICE](NOTICE.md)。历史代码与第三方组件保留各自许可，本仓库不将它们统一重新许可。
 
-旧的 `3000/tcp` 文件服务已删除。`planet` 和 `.moon` 只通过登录后的 Web `Downloads` 页面分发。
-
-脚本不会自动安装 Docker、修改内核、改防火墙或写 `/etc/docker/daemon.json`。这些主机级操作不应由应用安装脚本静默执行。
-
-## 首次安装
-
-从源码本地构建（将示例地址换成服务器真实公网地址）：
-
-```bash
-git clone https://github.com/Csneer/zerotier-planet-ms.git
-cd zerotier-planet-ms
-./install.sh --ip 203.0.113.10 --data-dir /srv/zerotier-planet
-```
-
-可选参数：
-
-```bash
-./install.sh \
-  --ip 203.0.113.10 \
-  --ipv6 2001:db8::10 \
-  --data-dir /srv/zerotier-planet
-```
-
-只有 IPv6 的 Root：
-
-```bash
-./install.sh --ipv6 2001:db8::10 --data-dir /srv/zerotier-planet
-```
-
-以下在备用机的新 checkout 中执行（尚无 `.env`）。不要复用已有客户端或 Controller 数据目录：
-
-```bash
-CONTAINER_NAME=myztplanet-root-b ./install.sh --ip 203.0.113.20 \
-  --data-dir /srv/zt-root-b \
-  --image zerotier-planet:multi-root \
-  --planet-mode external --root-only 1 --configure-only
-```
-
-该命令只生成配置，不会替你生成多 Root 签名文件。必须先由可信发布者准备并验证 `config/planet`，再执行 `./manage.sh up`。备用 Root 不应运行 Controller，也不能与主 Controller 共享 `one/` 或 `controller.d/`。
-
-生成 B 的独立身份后，再把 `identity.public` 交给签名发布者；不能把 A 的 identity 复制过来：
-
-```bash
-./build.sh
-(
-  set -eu
-  test -z "$(find /srv/zt-root-b/one -mindepth 1 -maxdepth 1 -print -quit)"
-  docker run --rm --network none --entrypoint zerotier-idtool \
-    -v /srv/zt-root-b/one:/work \
-    zerotier-planet:multi-root generate /work/identity.secret /work/identity.public
-)
-```
-
-只生成并检查 `.env`，不启动 Docker：
-
-```bash
-./install.sh --ip 203.0.113.10 --data-dir /srv/zerotier-planet --configure-only
-```
-
-使用你在 GHCR 发布的预构建镜像：
-
-```bash
-./install.sh \
-  --ip 203.0.113.10 \
-  --pull \
-  --image ghcr.io/csneer/ms-zerotier-planet:latest
-```
-
-安装器的安全边界：
-
-- 已存在 `.env` 时不会覆盖它。
-- 已存在数据目录时不会删除或初始化清空。
-- 不会自动拉取任何第三方 `latest` 镜像。
-- 新部署默认管理员是 `admin/password`，首次登录后必须立即修改。
-
-Web 默认只监听本机：
-
-```text
-http://127.0.0.1:3443
-```
-
-如果需要从 ZeroTier 网络访问，把 `HTTP_HOST` 设置为服务器对应的 ZeroTier 地址，例如 `198.51.100.97`。需要同时监听多个明确地址时使用逗号分隔的 `HTTP_EXTRA_HOSTS`，例如 `HTTP_HOST=127.0.0.1`、`HTTP_EXTRA_HOSTS=198.51.100.97`；它不接受网段或 `0.0.0.0`。默认 Compose 未启用 HTTPS；需要 HTTPS 时推荐在受信网络中增加反向代理。
-
-## 配置
-
-运行配置只保存在未纳入 Git 的 `.env`。模板见 [.env.example](.env.example)。
-
-| 变量 | 说明 |
-|---|---|
-| `ZT_VERSION` | 构建时安装的 ZeroTier 版本 |
-| `ZTNCUI_COMMIT` | 固定的 ztncui 源码提交 |
-| `MKWORLD_ZT_VERSION` | 用于构建 `mkworld` 的兼容 ZeroTier 源码版本 |
-| `DEBIAN_MIRROR` | Debian 镜像主机；海外环境可设为 `default` |
-| `ZT_IMAGE` | 本地或远端镜像名 |
-| `IMAGE_SOURCE` | `build` 从本仓库构建；`pull` 从镜像仓库拉取 |
-| `SOURCE_REPOSITORY` | 写入 OCI 标签的你自己的仓库 URL |
-| `DATA_DIR` | identity、Controller、配置和生成文件的持久化根目录 |
-| `ZTNCUI_STATE_DIR` | Web 用户与设备别名目录 |
-| `ZT_PROBE_STATE_DIR` | 可选本机 ZeroTier 客户端状态目录，只读挂载供连接监控读取 token |
-| `BACKUP_DIR` | 校验备份的保存目录 |
-| `CONTAINER_NAME` | 容器名；同机多实例或保留停机旧容器的跨工程接管需避免重名 |
-| `IP_ADDR4` / `IP_ADDR6` | Planet 对外发布的稳定 IPv4/IPv6 地址；Root 至少填写一个，双栈可同时填写 |
-| `PLANET_MODE` | `generated`：原单 Root 自动生成；`external`：使用 `config/planet` 的统一签名文件 |
-| `ROOT_ONLY` | `1`：只启动 Root，不开 Web UI；默认 `0` |
-| `CONTROLLER_ONLY` | `1`：external 模式下的人工 Controller 备用；必须有 active standby guard，不承担 Root；默认 `0` |
-| `ZT_PORT` | ZeroTier 主端口，默认 `9994` |
-| `API_PORT` | Web 管理端口，默认 `3443` |
-| `DEFAULT_NETWORK_MTU` | 新建网络默认 MTU，建议 `1280` |
-| `HTTP_HOST` | Web 监听地址，默认 `127.0.0.1`；也可绑定服务器的 ZeroTier 地址 |
-| `HTTP_EXTRA_HOSTS` | 额外的明确监听 IP，逗号分隔；缺失的局域网 IP 会重试，不会拖停主监听 |
-| `ZT_PROBE_ADDR` | 可选探针的本地 ZeroTier API，默认 `http://127.0.0.1:9993` |
-| `ZT_ENDPOINT_PROBES_FILE` | 可选端点 TCP 探针配置，默认 `/app/config/endpoint-probes.json`；仅检查明确 IP 和端口 |
-
-Compose 中空值或省略的 `IP_ADDR4` / `IP_ADDR6` 会禁用对应族，不会恢复保存的旧地址。升级前核对手工维护的 `.env`；Root 至少保留一个端点。
-
-单 Root `generated` 模式下，修改 `IP_ADDR4`、`IP_ADDR6` 或 `ZT_PORT` 后执行 `./manage.sh upgrade`。容器会保留原 identity 和 `.c25519` 签名密钥，生成时间戳更高的新 planet；客户端仍需重新下载并替换新的 `planet` 文件。多 Root `external` 模式必须统一签名发布，不能靠改环境变量重新生成，见[部署步骤](docs/multi-root.md)。
-
-建立自己的远程仓库后，请把 `SOURCE_REPOSITORY` 填为该仓库 URL；留空时 OCI source 标签也保持为空，不会冒充原上游发布物。
-
-## 连接状态与监控
-
-登录后进入“连接监控”可看到以下彼此独立的状态：
-
-- `Planet 可达`：Planet 服务器当前观测到该成员的有效路径。这只能说明成员与本服务器之间的状态。
-- `到 Planet 直连`：成员到 Planet 服务器有活动的物理路径，不代表成员与其他终端直连。
-- 探针 `DIRECT` / `RELAY` / `TCP RELAY`：服务器本机 ZeroTier 客户端到该成员的当前路径。探针只是一个观测点，不是所有终端的两两连接矩阵。
-- Planet 包速率与 UDP/TCP 流量：来自 ZeroTier 内置 Prometheus 指标，页面用相邻采样计算速率。
-- Planet 文件一致性与未声明 Root 数量：运行文件应与下载文件一致；按配置的公开 Root 清单识别异常上游，正常备用 Root 不会被误报为公共 Root。
-- Root 拓扑会分别显示 IPv4 与 IPv6 的声明端点、服务实例近期收包和探针观测；总体 Root 可达只表示至少一条服务端路径近期可用，不能把未观测的 IPv6 解释成客户端或云主机不支持 IPv6。
-
-若要启用探针视角，把主机 ZeroTier 客户端的数据目录配置为 `ZT_PROBE_STATE_DIR`。Compose 会只读挂载该目录，并通过 `ZT_PROBE_ADDR` 查询本机 API。目录为空或 API 不可达时，监控页会显示“探针不可用”，不会影响主服务。
-
-端点业务探针是另一层可选观测：复制 [examples/endpoint-probes.json](examples/endpoint-probes.json) 到持久化 `config/endpoint-probes.json` 后，监控页会以受限并发执行只读 TCP connect，并在建连后立即关闭。配置只接受字面 IPv4/IPv6 地址（不接受带接口 zone 的 `%` 形式）、1–32 个目标和 100–5000ms 超时；每次采样另有约 10 秒总预算，超出的目标标记为超时。不解析 DNS、不执行 SSH/HTTP 命令，也不会扫描任意端口。TCP 成功只说明本管理实例到目标端口可达，不代表 ZeroTier 端点直连、业务协议健康或流量经过哪个 Root；未配置时不会自动探测。
-
-判断两台具体终端是否直连，仍应在其中一台终端运行 `zerotier-cli peers`，或结合实际端到端传输测试；中央控制器无法可靠推断任意终端对之间的实时路径。
-
-## 从已有 Planet 项目原地升级
-
-本项目提供保留原数据的升级路径，并非对任意旧镜像、任意目录布局的一键兼容。详细命令和验收清单以[原地升级指南](docs/in-place-upgrade.md)为准：
-
-1. 保留独立管理通道，检查旧容器真实挂载；备份 identity、`controller.d/`、签名密钥、Planet 各副本、端点配置、Web 用户和 session key。缺失文件先核查，不能让新实例初始化替代身份或签名链。
-2. 当前项目更新源码时保留 `.env`、挂载路径和现有 `PLANET_MODE`，执行 `doctor`、`upgrade`。旧项目跨 checkout 接管需使用绝对路径；旧容器停机后仍占用名字，应使用不同的新容器名或将旧容器改名保留，不能双开同一 identity。
-3. 仅在确认单 Root、签名材料及原端点配置完整时沿用 `generated`。已是多 Root 或 external 的实例必须保持 `external`；只有当前可信 Planet、没有签名密钥时可按指南核查后 external 接管，但不能签发新增 Root。不要一律改成 generated。
-4. 新增 B 时为它生成独立身份，用原 World 签名链生成含 A/B 的候选，验证签名、时间戳和哈希后预置到各 Root 的 `config/planet`；先准备并验证 B，再滚动更新 A。A 保持 Controller 单活，B 不复制 A 的 `one/`。
-5. 分批给客户端安装同一份 Planet，核对原 Network ID、IP 和授权保持，并用隔离客户端验证实际中转及恢复时间。`doctor` 不等于签名验证，签名链和本机 Root 身份匹配在候选校验及容器启动时验证。
-
-热切换不以 Root 列表顺序指定主备，不等于 Controller 多主。镜像回退也不等于 World 拓扑回退：拓扑恢复必须签发更高时间戳的新 World。
-
-完整的签名发布、Controller-only 手动备用、原生 Root-only systemd 部署和隔离切换验证见[原地升级指南](docs/in-place-upgrade.md)、[多 Root 与切换方案](docs/multi-root.md)、[Controller-only 手动备用](docs/controller-standby.md)、[Root 接入指南](docs/root-onboarding.md)及[系统 Root-only 部署](docs/native-root.md)。
-
-## 日常维护
-
-```bash
-./manage.sh doctor                 # 配置与依赖检查
-./manage.sh status                 # 容器、ZeroTier、World/Root 和网络状态
-./manage.sh logs                   # 跟随日志
-./manage.sh restart                # 重启并等待 healthy
-./manage.sh build                  # 只构建镜像
-./manage.sh up                     # 启动已有镜像，不删除数据
-./manage.sh upgrade                # 构建/拉取、备份、重建、健康检查（回滚依模式）
-```
-
-升级本仓库代码后的推荐流程：
-
-```bash
-git pull --ff-only
-./manage.sh doctor
-./manage.sh upgrade
-```
-
-`upgrade` 会先准备新镜像，再短暂停止旧容器生成一致性备份。`generated` 模式的新容器未通过健康检查时会尝试恢复上一镜像；`external` 模式只保留回滚标签和备份，必须人工确认镜像仍支持当前 signed World 后恢复。
-
-## 备份与恢复
-
-生成一致性备份，过程中会短暂停止并自动恢复容器：
-
-```bash
-./manage.sh backup
-```
-
-不中断服务的快照：
-
-```bash
-./manage.sh backup --online
-```
-
-在线快照可能遇到文件正在变化，只适合作为补充。正式备份优先使用默认的一致性模式。
-
-每个备份包含：
-
-- `dist/`：planet 和 moon。
-- `one/`：ZeroTier identity、签名密钥和 Controller 数据。
-- `config/`：端口、地址和 session key。
-- `ztncui-state/`：Web 用户和设备别名。
-- `probe-state/` 不在正式备份中：它只是可选的只读本机 ZeroTier 观测客户端状态，可在目标主机重新指定 `ZT_PROBE_STATE_DIR`；其中的 token 不属于 Controller/Root 数据。
-- `.env`、Compose 配置、容器信息与 `SHA256SUMS`。
-
-恢复前会先验证校验和并自动备份当前数据：
-
-```bash
-./manage.sh restore ./backups/planet-YYYYMMDD-HHMMSS --yes
-```
-
-备份包含私钥和密码哈希，目录权限会收紧为 `0700`、文件为 `0600`。不要上传到公开 Git 仓库。
-
-## 密码与卸载
-
-忘记 Web 管理密码：
-
-```bash
-./manage.sh reset-password --yes
-```
-
-该操作会先备份当前密码文件，再重置为 `admin/password` 并重启；登录后立即修改。
-
-仅删除容器、保留全部数据和镜像：
-
-```bash
-./uninstall.sh
-```
-
-删除容器和持久化数据：
-
-```bash
-./uninstall.sh --purge-data --yes
-```
-
-彻底删除前仍会自动生成最后一份校验备份。脚本不会自动删除镜像和备份。
-
-## 客户端配置
-
-1. 登录 Web 控制台，进入 `Downloads`。
-2. 下载 `planet` 并核对页面中的 SHA-256。
-3. 停止客户端 ZeroTier 服务。
-4. 替换客户端 ZeroTier 数据目录中的 `planet`。
-5. 启动 ZeroTier 服务并加入 Web 中创建的网络。
-6. 在 Web 中授权成员。
-7. 运行 `zerotier-cli peers`，确认自建节点显示为 `PLANET`，路径尽量为 `DIRECT`。
-
-常见 planet 路径：
-
-- Linux：`/var/lib/zerotier-one/planet`
-- Windows：`C:\ProgramData\ZeroTier\One\planet`
-- macOS：`/Library/Application Support/ZeroTier/One/planet`
-
-| 平台 | 当前验证范围 | 接入要求 |
-| --- | --- | --- |
-| Linux | 已有容器启动、签名更新和隔离网络回归 | 有权限停止服务并替换数据目录中的 Planet；实际部署仍应验证端到端访问 |
-| Windows / macOS | 提供常见文件路径，本轮未做真机回归 | 管理员权限替换 Planet 后，验证加入网络及服务访问 |
-| Android / iOS | 未验证私有 Planet 接入 | 官方客户端能否导入及所需权限取决于版本和设备策略；普通客户端加入 Network ID 不等于接入私有 Planet |
-
-移动端接入前，请用有恢复办法的测试设备验证 Planet 导入、加入网络和端到端访问，再决定是否用于日常连接。
-
-替换文件前必须停止 ZeroTier；具体路径可能因客户端发行版而不同。
-
-## 版本与镜像发布
-
-项目采用独立的 SemVer 版本（`vX.Y.Z`）；当前版本为 `v1.2.0`，对应镜像 `ghcr.io/csneer/ms-zerotier-planet:v1.2.0`。它与 ZeroTier `1.16.2` 等运行时版本不同。变更见 [CHANGELOG](CHANGELOG.md)，维护者的身份配置、打 tag 和 GitHub Release 步骤见[发布约定](docs/releasing.md)。
-
-[image-build.yml](.github/workflows/image-build.yml) 校验脚本、Compose 和容器回归后，构建 `amd64`/`arm64` 并发布到 GHCR：
-
-- 正式 `vX.Y.Z` tag 使用该 tag 的 `.env.example` 中的 `ZT_VERSION`（`v1.2.0` 为 `1.16.2`），只发布对应项目版本镜像，不更新滚动标签。
-- `main`/`master` 推送、每周计划任务和普通手动构建继续采用上游最新稳定 ZeroTier（手动构建可指定版本），生成 `latest`、ZeroTier 版本和 Git SHA 标签。
-- 需要固定实际部署内容时，记录并使用镜像 digest；版本 tag 本身不代表全部构建依赖均已锁定。
-
-如果 GHCR 包是私有的，部署主机需要先执行 `docker login ghcr.io`。Dependabot 每周检查 Docker 基础镜像和 GitHub Actions 版本。
-
-## 仓库结构
-
-```text
-.
-├── Dockerfile
-├── docker-compose.yml
-├── install.sh              # 首次配置和安装
-├── manage.sh               # 日常维护入口
-├── uninstall.sh            # 安全卸载入口
-├── deploy.sh               # 旧命令兼容层，不再包含旧部署逻辑
-├── build.sh                # 本地/多架构镜像构建
-├── docs/                   # 原地升级、Controller 备用、Root 接入、多 Root 和 Root-only 运维文档
-├── patch/                  # ZeroTier、ztncui 和 Web 定制
-└── .github/                # GHCR 发布与依赖更新
-```
-
-## 安全注意事项
-
-- 不建议将 `3443/tcp` 直接暴露给整个公网；至少使用云安全组白名单。
-- 更推荐 `HTTP_HOST=127.0.0.1`，再由 Caddy/Nginx/Traefik 提供 HTTPS；如需 ZeroTier 访问，再把实际地址加入 `HTTP_EXTRA_HOSTS`。
-- 回环和指定 ZeroTier 地址提供同一套账户、会话存储和管理模型；浏览器 Cookie 按主机隔离，换 IP 可能要重新登录。不要使用 `0.0.0.0`，除非有明确的防火墙白名单。
-- 不要提交 `.env`、`data/`、`backups/` 或任何 identity、`.c25519`、token 文件。
-- ztncui 上游已经停止积极维护；管理面应视为高权限内部服务。
-
-## 来源与许可证
-
-本仓库没有擅自给历史代码重新声明许可证。第三方源代码、补丁基础和运行时组件分别受其各自许可证约束。公开分发或商业使用前，请阅读 [NOTICE.md](NOTICE.md) 并核对相应许可条款。
+如果它帮助你搭起了自己的私有网络，欢迎 [Star](https://github.com/Csneer/zerotier-planet-ms) 或[反馈使用体验](https://github.com/Csneer/zerotier-planet-ms/issues)。提交问题时附上版本、客户端平台和脱敏拓扑即可，请勿上传身份私钥、令牌或备份。

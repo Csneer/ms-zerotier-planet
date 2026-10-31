@@ -1,350 +1,161 @@
-# zerotier-planet-ms
-
-[中文](README.md)
-
 <div align="center">
 
-[![CI](https://github.com/Csneer/zerotier-planet-ms/actions/workflows/image-build.yml/badge.svg)](https://github.com/Csneer/zerotier-planet-ms/actions/workflows/image-build.yml)
-[![Latest release](https://img.shields.io/github/v/release/Csneer/zerotier-planet-ms?display_name=tag)](https://github.com/Csneer/zerotier-planet-ms/releases)
+# zerotier-planet-ms
 
-<h2>Put your ZeroTier entry point back in your hands.</h2>
+### Your devices, miles apart. One private network.
 
-<p><strong>Private Planet · Web Controller · IPv4 / IPv6 Roots</strong></p>
+Connect your NAS, laptop and cloud servers through an **encrypted virtual LAN**.
 
-<p>Use one affordable cloud VM to connect your NAS, workstations, and servers on one private network.</p>
+Host your own ZeroTier Planet and Controller. Manage access, authorization and addresses from your own console.
 
-<p><a href="#quick-start-in-60-seconds">Quick start</a> · <a href="docs/ipv6-roots.md">IPv6 Root guide</a> · <a href="docs/agent-install.md">Agent guide</a> · <a href="CHANGELOG.md">Changelog</a></p>
+[![CI](https://github.com/Csneer/zerotier-planet-ms/actions/workflows/image-build.yml/badge.svg)](https://github.com/Csneer/zerotier-planet-ms/actions/workflows/image-build.yml) [![Release](https://img.shields.io/github/v/release/Csneer/zerotier-planet-ms?display_name=tag&color=334155)](https://github.com/Csneer/zerotier-planet-ms/releases)
+
+**[Get started](#get-started)** · **[See the console](#one-network-one-console)** · **[Compare options](#choose-the-network-that-fits)** · **[Operations guide](docs/operations.en.md)** · **[中文](README.md)**
 
 </div>
 
----
+<br>
 
-## In one sentence
+![NAS, laptop and cloud servers connected through ZeroTier encryption; a self-hosted control plane manages access and Roots relay traffic when needed](docs/assets/private-network.svg)
 
-`zerotier-planet-ms` packages a maintainable ZeroTier Planet, Root, Controller, and Web console. You keep control of the network entry point, member authorization, and virtual addresses; clients continue to use any ZeroTier build that supports replacing its `planet` file, while SSH, RDP, HTTP, databases, and other services remain unchanged.
+<br>
 
-```text
-your devices and private services  ─────  private ZeroTier network  ─────  your Planet + Root
-                                                                                 └─ Controller + Web console
-```
+## Take your private services with you
 
-## Why start here
+Away from home, your NAS still has its familiar virtual IP. On another network, your workstation is still an SSH connection away. Services at home and applications in the cloud can reach each other over the same private network.
 
-| Start small | Own the control plane | Leave room to grow |
-| --- | --- | --- |
-| A 2 vCPU / 2 GiB cloud VM is a practical start for personal and small-team, low-to-moderate traffic. | Planet, identities, networks, authorizations, and virtual IPs stay on infrastructure you control. | Start with one Root, then add independent Roots; IPv4, IPv6, and dual-stack are supported. |
+`zerotier-planet-ms` is for individuals, home labs and small teams that want to **run their own ZeroTier infrastructure**. Once devices join a network and receive authorization, they can reach each other's services using virtual IPs. Keep your existing NAS interface, remote desktop client, Git tools, databases and applications—without publishing each service to the Internet.
 
-- **Manage visually**: create networks, authorize members, adjust MTU, and download signed `planet` / `.moon` files with SHA-256.
-- **Migrate deliberately**: upgrades preserve identity and signing chains, with explicit non-destructive backup and restore boundaries.
-- **See the path**: the dashboard and Connection Monitor share Controller / World / Root topology and distinguish recent responses, stale paths, and unavailable probes.
+| What you want to do | What the network enables |
+| :--- | :--- |
+| **Reach your NAS from anywhere** | Open its interface and sync files over a virtual IP, without a separate public port-forwarding rule for every service. |
+| **Keep your workstation within reach** | Access SSH, RDP and development environments from your laptop. The target must be running, with the required service and firewall access enabled. |
+| **Connect home, servers and cloud** | Link machines running the client across locations; add planned routes or gateways when you need to reach an existing subnet. |
+| **Build a private team network** | Authorize devices centrally, assign addresses and organize test services, collaboration tools and shared resources by network. |
 
-## Quick start in 60 seconds
+**Connect devices first; add subnets when needed.** Clients generally initiate connections and attempt direct paths using NAT traversal, with relaying available when network conditions prevent direct connectivity. On a direct path, application traffic travels between devices instead of all passing through your cloud server.
 
-Use a Linux host with a stable public IPv4 address or globally routable IPv6 address. Allow `9994/udp` for the address family you use, and install Docker Engine 24+, Compose v2, Bash, Git, Python 3, `jq`, and GNU coreutils.
+<br>
+
+## Encrypted connections. Infrastructure you control.
+
+**End-to-end encryption between devices.** Under ZeroTier's normal encrypted transport configuration, virtual network traffic is encrypted at one endpoint and decrypted at the other. It remains encrypted through a Root relay, which cannot read the application payload. Encryption and identity authentication come from the [ZeroTier protocol](https://docs.zerotier.com/protocol); this project brings self-hosted Roots, a Controller and day-to-day management together.
+
+**Your authorization and network configuration.** Create networks, check node IDs, authorize devices and manage virtual addresses on your own Controller. Planet signing material, server identities, configuration and backups stay on infrastructure you operate.
+
+**A public endpoint for the network, private access to services.** Your Root provides a reachable UDP endpoint. NAS devices and workstations offer their services through the virtual network, so every application does not need its own public-facing port.
+
+“Encrypted LAN” means the **virtual network between ZeroTier endpoints**. It does not automatically encrypt the physical LAN behind a gateway or replace application authentication, SSH/HTTPS or host firewalls. See the [selection guide (Chinese)](docs/choosing-a-solution.md) for protocol boundaries and sources.
+
+<br>
+
+## One network, one console
+
+![ZeroTier Planet console showing a sample Home Lab network, device aliases, assigned IPs and member authorization](docs/assets/console-en.png)
+
+<p align="center"><sub>Current main-branch UI · Isolated demo instance with fictional devices · No production data</sub></p>
+
+**Keep everyday actions visible and open details when you need them.** Create networks, authorize members, change MTU and download Planet files in one place. Click a member to inspect its version, IPs, authorization and observed paths. Longer configuration and diagnostic views open in dialogs, keeping the page compact.
+
+| Day-to-day management | When you need to investigate |
+| :--- | :--- |
+| Device aliases, member search, pagination and authorization switches | DIRECT / RELAY observations with separate service and probe perspectives |
+| IPv4 / IPv6 address assignment, routes, DNS and MTU | Root address families, recent responses and Planet file consistency |
+| Authenticated Planet downloads with SHA-256 verification | Clickable version and bridge notices with explanations and next steps |
+| Chinese and English interfaces for desktop and mobile | Consistent backups, checked upgrades and recovery workflows |
+
+Monitoring shows **evidence from a specific observation point**. Reachability to a Root does not prove that any two devices have a direct connection. Continue with the [client and path troubleshooting guide (Chinese)](docs/client-troubleshooting.md) when investigating.
+
+<br>
+
+## Start with a small cloud VM
+
+**2 vCPU / 2 GiB is a practical starting point.** A small Linux VM from Alibaba Cloud or another provider can host your initial deployment. Use a prebuilt image to keep the machine's resources available for running services rather than compiling dependencies.
+
+An isolated container test with a 2 vCPU / 2 GiB limit completed login, network creation, authorization, renaming and mobile UI workflows. A single memory sample at the end was approximately **69 MiB**. That demonstrates a lightweight management service, not a relay throughput guarantee: capacity still depends on bandwidth, CPU, paths and concurrency. See the [reproducible capacity record (Chinese)](docs/capacity-benchmark.md).
+
+- **IPv4, IPv6 and dual-stack are supported configuration paths.** Each Root needs at least one reachable endpoint. An IPv6-only Root requires suitable IPv6 connectivity from clients and the Controller.
+- **Add independent Roots when you need more paths.** Publish a consistently signed Planet and deploy Roots separately from the Controller when appropriate. Multiple Roots provide path redundancy; Controller takeover follows a single-active-instance workflow.
+- **Keep your network identity when you move.** Persist, back up and migrate identities, networks, authorization, Web accounts and signing material.
+
+[IPv6 Roots](docs/ipv6-roots.md) · [Multi-Root deployment](docs/multi-root.md) · [Controller migration and standby](docs/controller-standby.md) — deployment guides in Chinese.
+
+<br>
+
+## Choose the network that fits
+
+These projects overlap in what they enable, but differ in their operating model and primary use. Encryption, P2P connections and self-hosting are not unique to this project.
+
+| Option | Primary use | A good fit when… |
+| :--- | :--- | :--- |
+| **zerotier-planet-ms** | Self-hosted ZeroTier Planet and Web console | You want to own Roots and authorization, and can maintain client Planet configuration. |
+| [Tailscale](https://github.com/tailscale/tailscale) | WireGuard networking with a hosted control plane | Easy onboarding, mature clients and identity management come first. |
+| [Headscale](https://github.com/juanfont/headscale) | Self-hosted Tailscale coordination | You want Tailscale clients with your own control plane and optional community UI. |
+| [NetBird](https://github.com/netbirdio/netbird) | WireGuard networking and Web policy management | You need team access controls, either hosted or self-hosted. |
+| [EasyTier](https://github.com/EasyTier/EasyTier) | Decentralized networking and subnet proxying | You want flexible nodes and gateways with CLI / GUI / Web configuration. |
+| [frp](https://github.com/fatedier/frp) | Publishing TCP / UDP / HTTP(S) services | You mainly need a few ports or domain-based services; XTCP is also available. |
+
+See the [full selection guide (Chinese)](docs/choosing-a-solution.md) for self-hosting scope, encryption boundaries, mobile support and details such as frp's experimental VirtualNet. References checked **2026-10-31**.
+
+<br>
+
+## Get started
+
+Prepare a Linux host with a stable public IPv4 address or globally routable IPv6 address, plus **Docker Engine 24+, Compose v2, Bash, Git, Python 3, jq and GNU coreutils**. Your account needs Docker and data-directory permissions. Allow `9994/udp` to the Root; check both address families for a dual-stack deployment.
+
+### 1. Start the service
+
+The following uses the CI-verified main-branch image shown on this page, avoiding compilation on the deployment host. Replace `YOUR_PUBLIC_IPV4` with your server's public address:
 
 ```bash
 git clone https://github.com/Csneer/zerotier-planet-ms.git
 cd zerotier-planet-ms
-./install.sh --ip YOUR_PUBLIC_IPV4 --data-dir /srv/zerotier-planet
+./install.sh --ip YOUR_PUBLIC_IPV4 --data-dir /srv/zerotier-planet \
+  --pull --image ghcr.io/csneer/ms-zerotier-planet:sha-7308b49
 ```
 
-For an IPv6-only or dual-stack Root:
+**IPv6-only:** replace `--ip YOUR_PUBLIC_IPV4` with `--ipv6 YOUR_PUBLIC_IPV6`. **Dual-stack:** provide both arguments. For an existing deployment, follow the [in-place upgrade guide (Chinese)](docs/in-place-upgrade.md) instead of initializing it again.
 
-```bash
-# IPv6-only
-./install.sh --ipv6 YOUR_PUBLIC_IPV6 --data-dir /srv/zerotier-planet
+> Image choice: `sha-7308b49` corresponds to the [verified commit](https://github.com/Csneer/zerotier-planet-ms/commit/7308b4911edb0f195724aa924053611382c01a02) demonstrated here. The latest formal Release is [`v1.2.0`](https://github.com/Csneer/zerotier-planet-ms/releases/tag/v1.2.0), which does not yet include later member-dialog changes. Pin the image digest when exact deployment contents must remain fixed. See the [version and image rules (Chinese)](docs/releasing.md).
 
-# dual-stack
-./install.sh --ip YOUR_PUBLIC_IPV4 --ipv6 YOUR_PUBLIC_IPV6 \
-  --data-dir /srv/zerotier-planet
-```
+### 2. Open your console
 
-Open the console through an SSH tunnel:
+The console listens on the server's loopback address by default. Create an SSH tunnel from your computer:
 
 ```bash
 ssh -N -L 3443:127.0.0.1:3443 user@server
 ```
 
-Visit `http://127.0.0.1:3443`, sign in with `admin/password`, and change the password immediately. Create a network in `Networks`, download `planet` from `Downloads`, join the network from each client, then authorize its member in the console.
+Open **http://127.0.0.1:3443**, sign in with the initial `admin/password` credentials and change the password immediately. Port `3443` does not imply that HTTPS is enabled; use the SSH tunnel or a trusted TLS reverse proxy for remote administration.
 
-> **Version note:** IPv6-only installation and address-family migration are included in the `v1.2.0` image. Build the current checkout when reviewing changes after this release. See the [IPv6 Root guide (Chinese)](docs/ipv6-roots.md) for host, firewall, and migration checks.
+### 3. Connect devices and reach a service
 
-## Clear boundaries
+1. Create a private network in the console, configure its address pool and note the Network ID.
+2. Download Planet and verify SHA-256. On desktop/server clients, stop ZeroTier, replace the file and restart; on mobile, follow the client's supported import flow.
+3. Join that Network ID from each client, verify its node ID in the console and authorize it.
+4. Once it has a virtual IP, open your NAS interface, SSH session or remote desktop and verify the service you actually need.
 
-This is a private virtual network for multiple TCP/UDP services, not a temporary HTTP-only tunnel. You still manage the public address, cloud security group, host firewall, and client-side `planet` distribution. Multiple Roots provide path redundancy; they do not make the Controller highly available or guarantee instant failover. Validate a single-Root client path first, then expand with the [multi-root deployment guide (Chinese)](docs/multi-root.md).
+[Client paths and bootstrap](docs/operations.en.md#client-bootstrap) · [Android / iOS details (Chinese)](docs/choosing-a-solution.md#客户端与移动端) · [Install with an Agent (Chinese)](docs/agent-install.md)
 
-> **Good fit**: self-hosted network entry points, home labs, small-team development environments, and cross-region networks where you want to own the Planet.<br>
-> **Not promised**: fixed throughput, guaranteed direct paths across carriers, or automatic Planet replacement on unverified clients.
+<br>
 
-## Maintained derivative scope
+## Keep it running
 
-- ZeroTier `1.16.2`, selected through `.env` and build arguments.
-- Host networking for the ZeroTier UDP hot path.
-- Default MTU `1280`; existing networks can edit MTU from `1280` to `2800` in the Web UI.
-- Responsive dashboard for networks, members, users, MTU, and signed configuration downloads.
-- Connection monitoring separates the Planet-server view from an optional local-probe view and exposes ZeroTier traffic metrics.
-- The multi-root panel reports observed failover readiness, World consistency, and evidence per backup Root; it is intentionally read-only and never changes firewall rules or forces traffic switching.
-- Persistent identity, Controller state, users, aliases, and session key.
-- Combined health check, process supervision, graceful shutdown, and bounded Docker logs.
-- IP or ZeroTier port changes re-sign planet/moon while retaining identity and world signing keys.
-- Multi-root worlds with one offline publisher, independent Root identities and Root-only instances; see the [multi-root deployment and failover guide (Chinese)](docs/multi-root.md).
-- Multiple Roots do not provide Controller HA or guarantee instant failover: one isolated two-host trial recovered after approximately 245 seconds. Validate your client versions and real paths before relying on a recovery-time target.
-- Dashboard and monitor share Controller / World / Root topology, distinguish recent responses from stale paths or unavailable probes, and serve one UI on loopback plus explicit ZeroTier addresses.
-- Explicit, non-destructive install, upgrade, backup, restore, password-reset, and uninstall commands.
-- GitHub Actions publish multi-architecture images to this repository's GHCR package.
-- The [small-VM benchmark](docs/capacity-benchmark.md) records the 2 vCPU / 2 GiB baseline; idle resource use is not a relay throughput or member-count guarantee.
+| What you need next | Start here |
+| :--- | :--- |
+| Parameters, ports, monitoring, backups and recovery | [Operations guide](docs/operations.en.md) / [中文](docs/operations.md) |
+| Have an Agent install and verify the deployment | [Agent guide (Chinese)](docs/agent-install.md) |
+| Adopt an existing deployment while preserving networks and identities | [In-place upgrade (Chinese)](docs/in-place-upgrade.md) |
+| Add a Root or use a native systemd deployment | [Root onboarding](docs/root-onboarding.md) / [Native Root](docs/native-root.md), in Chinese |
+| Troubleshoot configuration requests, versions, bridging or relaying | [Client and path troubleshooting (Chinese)](docs/client-troubleshooting.md) |
+| Review changes or reproduce the validation | [CHANGELOG](CHANGELOG.md) / [Browser regression guide](tests/browser/README.md) |
 
-## Requirements
+Existing networks and data come first. `upgrade` prepares the image, creates a consistent backup and waits for health checks. Multiple Roots do not provide automatic Controller HA; image rollback and signed-World rollback have different procedures. Follow the relevant guide for each operation.
 
-- 64-bit Linux; Debian 12, Ubuntu 22.04+, or Rocky Linux 9 is recommended.
-- Docker Engine 24+ and Docker Compose v2.
-- Bash, Git, Python 3, `jq`, and GNU coreutils.
-- A stable public IPv4 address, IPv6 address, or both; every Root needs at least one reachable address family.
-- Allow `${ZT_PORT}/udp` through host and cloud firewalls (`9994/udp` by default); dual-stack hosts must allow both IPv4 and IPv6.
+## Built on established projects
 
-| Default | Protocol | Purpose | Exposure |
-|---:|---|---|---|
-| 9994 | UDP | ZeroTier Planet Root stable endpoint | Public; allow UDP for every Root |
-| 9994 | TCP | ZeroTier local management API | Loopback or trusted sources only; not a public HTTPS/business endpoint |
-| 3443 | TCP | Web administration | Trusted IPs, ZeroTier subnet, or local reverse proxy |
+This maintained derivative builds on [ZeroTierOne](https://github.com/zerotier/ZeroTierOne), [ztncui](https://github.com/key-networks/ztncui) and [docker-zerotier-planet](https://github.com/xubiaolin/docker-zerotier-planet). Its focus is **self-hosted Planet deployment, usable management and verifiable operations**. It is not an official ZeroTier product or a new underlying network protocol.
 
-The legacy `3000/tcp` file server has been removed. `planet` and `.moon` files are available only from the authenticated Web `Downloads` page.
+Treat the console as a privileged internal service. See the [operations guide](docs/operations.en.md#security-and-licensing) for the maintenance status of upstream ztncui and [NOTICE](NOTICE.md) for component provenance and licensing. Historical code and third-party components retain their applicable terms; this repository does not relicense them as a whole.
 
-The installer does not install Docker, change the kernel or firewall, or write Docker daemon configuration.
-
-## Install
-
-Build from your checkout (replace the example addresses with the server's real public addresses):
-
-```bash
-git clone https://github.com/Csneer/zerotier-planet-ms.git
-cd zerotier-planet-ms
-./install.sh --ip 203.0.113.10 --data-dir /srv/zerotier-planet
-```
-
-Optional arguments:
-
-```bash
-./install.sh \
-  --ip 203.0.113.10 \
-  --ipv6 2001:db8::10 \
-  --data-dir /srv/zerotier-planet
-```
-
-IPv6-only Root:
-
-```bash
-./install.sh --ipv6 2001:db8::10 --data-dir /srv/zerotier-planet
-```
-
-Run this in a fresh checkout on the backup host, with no existing `.env`. Do not reuse an existing client or Controller directory:
-
-```bash
-CONTAINER_NAME=myztplanet-root-b ./install.sh --ip 203.0.113.20 \
-  --data-dir /srv/zt-root-b \
-  --image zerotier-planet:multi-root \
-  --planet-mode external --root-only 1 --configure-only
-```
-
-This only creates configuration; it does not create a multi-root signed world. A trusted publisher must prepare and verify `config/planet` before `./manage.sh up`. A backup Root must not run the Controller or share `one/` or `controller.d/` with the primary.
-
-Generate B's independent identity and give only `identity.public` to the signer; never copy A's identity:
-
-```bash
-./build.sh
-(
-  set -eu
-  test -z "$(find /srv/zt-root-b/one -mindepth 1 -maxdepth 1 -print -quit)"
-  docker run --rm --network none --entrypoint zerotier-idtool \
-    -v /srv/zt-root-b/one:/work \
-    zerotier-planet:multi-root generate /work/identity.secret /work/identity.public
-)
-```
-
-Create and validate `.env` without starting Docker:
-
-```bash
-./install.sh --ip 203.0.113.10 --data-dir /srv/zerotier-planet --configure-only
-```
-
-Use an image published by your repository:
-
-```bash
-./install.sh \
-  --ip 203.0.113.10 \
-  --pull \
-  --image ghcr.io/csneer/ms-zerotier-planet:latest
-```
-
-The installer never overwrites an existing `.env` or deletes an existing data directory. A new deployment starts with `admin/password`; change it immediately. The Web UI listens on `127.0.0.1:3443` by default. Set `HTTP_HOST` to the server's ZeroTier address when that is the only listener, or add explicit comma-separated addresses through `HTTP_EXTRA_HOSTS` (for example `HTTP_EXTRA_HOSTS=198.51.100.97`). Subnets and wildcard addresses are rejected for extra listeners. The default Compose deployment does not enable HTTPS; a trusted reverse proxy is recommended when it is needed. Listeners share accounts and session storage, but browser cookies are host-specific, so switching IPs may require signing in again.
-
-## Configuration
-
-Runtime configuration lives in the untracked `.env`; see [.env.example](.env.example).
-
-Important variables:
-
-- `ZT_VERSION`, `ZTNCUI_COMMIT`, `MKWORLD_ZT_VERSION`: pinned build inputs.
-- `DEBIAN_MIRROR`: Debian mirror host; use `default` when Aliyun is not appropriate.
-- `ZT_IMAGE`: local or remote image reference.
-- `IMAGE_SOURCE`: `build` for this checkout or `pull` for a registry image.
-- `SOURCE_REPOSITORY`: your repository URL for OCI metadata.
-- `DATA_DIR`, `ZTNCUI_STATE_DIR`, `BACKUP_DIR`: persistent state and backup paths.
-- `ZT_PROBE_STATE_DIR`: optional host ZeroTier client state, mounted read-only for probe authentication.
-- `CONTAINER_NAME`: use unique names for independent instances or cross-project adoption while retaining the stopped old container.
-- `IP_ADDR4`, `IP_ADDR6`, `ZT_PORT`: published Planet endpoints. A Root needs at least one of the two address families; set both for dual-stack.
-- `PLANET_MODE`: `generated` for the legacy single Root; `external` for a centrally signed `config/planet`.
-- `ROOT_ONLY`: `1` starts only ZeroTier, without the Web UI; defaults to `0`.
-- `CONTROLLER_ONLY`: `1` enables the guarded external Controller-only manual standby; it is not a Root and requires an active standby guard; defaults to `0`.
-- `API_PORT`: Web management port.
-- `DEFAULT_NETWORK_MTU`: `1280` is recommended for Internet paths.
-- `HTTP_HOST`: Web listen address; defaults to `127.0.0.1` and may be set to the server's ZeroTier address.
-- `HTTP_EXTRA_HOSTS`: optional comma-separated explicit IP listeners sharing the same authenticated UI; unavailable optional addresses are retried without taking down the primary listener.
-- `ZT_PROBE_ADDR`: optional local probe API, defaulting to `http://127.0.0.1:9993`.
-- `ZT_ENDPOINT_PROBES_FILE`: optional TCP endpoint probe configuration, defaulting to `/app/config/endpoint-probes.json`; only literal IP addresses and ports are accepted.
-
-Empty or omitted `IP_ADDR4` / `IP_ADDR6` fields in Compose disable that family instead of restoring saved addresses. Review hand-maintained `.env` files before upgrading and retain at least one endpoint for a Root.
-
-In single-root `generated` mode, after changing a public IP or `ZT_PORT`, run `./manage.sh upgrade`. Identity and `.c25519` signing keys remain unchanged, but clients must download and install the newly generated `planet`. In `external` mode, publish a verified signed update with `planet-bundle.sh` instead. Multi-root redundancy does not replicate the Controller, enforce a primary/backup order, or automatically stop traffic at a cloud quota.
-
-After creating your remote repository, set `SOURCE_REPOSITORY` to its URL. Leaving it blank keeps the OCI source label empty instead of attributing a modified image to the old upstream repository.
-
-## Connection status and monitoring
-
-The authenticated Connection Monitor reports distinct observations:
-
-- `Planet reachable` means the Planet server currently sees an active path to the member. It says nothing about paths between other endpoints.
-- `Direct to Planet` is an active physical path between that member and the Planet server, not proof that the member is direct to another client.
-- Probe `DIRECT`, `RELAY`, or `TCP RELAY` describes only the path from the host's local ZeroTier client to that member. It is one observation point, not a full endpoint-to-endpoint matrix.
-- Planet packet rates and UDP/TCP traffic come from ZeroTier's built-in Prometheus metrics. The page derives rates from consecutive samples.
-- The page verifies that the runtime Planet matches the downloadable file and reports Roots absent from the configured public manifest; a declared private backup Root is not misclassified as public.
-- Root topology shows declared endpoints and recent service/probe observations separately for IPv4 and IPv6. Overall Root reachability means at least one recent service path; an unobserved IPv6 path is not evidence that the client or host lacks IPv6.
-
-To enable the probe view, set `ZT_PROBE_STATE_DIR` to the host ZeroTier client's state directory. Compose mounts it read-only and queries `ZT_PROBE_ADDR`. A missing token or unavailable API is reported as “probe unavailable” without affecting the main service.
-
-Endpoint service probes are a separate optional observation layer. Copy [examples/endpoint-probes.json](examples/endpoint-probes.json) into the persistent `config/endpoint-probes.json`; the monitor then performs bounded, read-only TCP connects and closes each socket immediately. It accepts only literal IPv4/IPv6 addresses (interface-zone `%` forms are rejected), 1–32 targets, and 100–5000 ms timeouts. Each sample also has an approximately 10-second total budget; targets that exceed it are marked timed out. It never resolves DNS, runs SSH/HTTP commands, or scans arbitrary ports. TCP success means only that this management instance reached the target port; it does not prove a direct ZeroTier path, application-protocol health, or which Root carries traffic. No probes run when the file is absent.
-
-To verify whether two specific endpoints are direct, inspect `zerotier-cli peers` on an endpoint or run an end-to-end transfer test. The central controller cannot reliably infer every endpoint pair's live path.
-
-## In-place upgrade from an existing Planet deployment
-
-An in-place path is provided, not unconditional one-click compatibility with every legacy image/layout. Use the [in-place upgrade guide](docs/in-place-upgrade.md) for commands and acceptance checks:
-
-1. Keep independent management access. Inspect old mounts and back up identities, `controller.d/`, signing keys, all Planet copies, endpoint settings, Web users and the session key. Never initialize replacement identities or signing keys to bypass missing legacy files.
-2. For this project's source upgrades, keep `.env`, mounts and the current `PLANET_MODE`; run `doctor` and `upgrade`. Cross-checkout adoption requires absolute paths and stopping the old service. A stopped container still owns its name: choose a different new name or rename and retain the old one. Never run the same identity twice.
-3. Use `generated` only for a verified single Root with intact signing material and endpoint settings. Existing multi-Root/external deployments must stay `external`. A trusted current Planet can be adopted as external without signing keys after the guide's checks, but adding Roots still requires the original signing chain.
-4. Give B an independent identity and sign an A/B candidate with the original World chain. Verify signatures, timestamps and hashes, stage `config/planet`, and prepare/verify B before rolling A. A stays the only active Controller; do not copy its `one/` to B.
-5. Roll the same Planet out to clients, retaining Network IDs/IPs/authorization, then verify actual relaying and recovery time with isolated clients. `doctor` is not cryptographic validation; candidate checks and container startup verify the signature chain and local Root membership.
-
-Multiple Roots do not impose file-order priority or provide multi-primary Controllers. Image rollback is not World-topology rollback: restoring a topology requires a newer signed World timestamp.
-
-See the [in-place upgrade guide](docs/in-place-upgrade.md), [multi-root deployment and failover guide](docs/multi-root.md), [Controller-only manual standby guide](docs/controller-standby.md), [Root onboarding guide](docs/root-onboarding.md), and [native Root-only guide](docs/native-root.md) for signed publication, isolated systemd deployment, and failover validation. The Controller standby guide is intentionally manual and does not claim mixed Controller+Root or automatic election support.
-
-## Operations
-
-```bash
-./manage.sh doctor
-./manage.sh status
-./manage.sh logs
-./manage.sh restart
-./manage.sh build
-./manage.sh up
-./manage.sh upgrade
-```
-
-Recommended source upgrade:
-
-```bash
-git pull --ff-only
-./manage.sh doctor
-./manage.sh upgrade
-```
-
-`upgrade` prepares the candidate image before downtime, creates a consistent backup, recreates the container, and waits for health. In `generated` mode it may restore the previous image after a failed health check; in `external` mode it retains the rollback tag and backup for manual review because an older image may overwrite a signed multi-root World.
-
-## Backup, restore, and removal
-
-Consistent backup with a short service interruption:
-
-```bash
-./manage.sh backup
-```
-
-Best-effort online snapshot:
-
-```bash
-./manage.sh backup --online
-```
-
-Restore verifies checksums and backs up current data first:
-
-```bash
-./manage.sh restore ./backups/planet-YYYYMMDD-HHMMSS --yes
-```
-
-Backups contain identities, signing keys, tokens, and password hashes. Directories use mode `0700` and files `0600`; never commit them.
-
-The optional read-only `probe-state` client directory is intentionally outside the formal backup set. Reconfigure `ZT_PROBE_STATE_DIR` on the target host instead; its token is not Controller or Root state.
-
-Reset Web credentials after backing up the current password file:
-
-```bash
-./manage.sh reset-password --yes
-```
-
-Remove the container while preserving state:
-
-```bash
-./uninstall.sh
-```
-
-Purge state only with explicit confirmation; a final backup is always created:
-
-```bash
-./uninstall.sh --purge-data --yes
-```
-
-## Client bootstrap
-
-1. Sign in to the Web console and open `Downloads`.
-2. Download `planet` and verify its displayed SHA-256.
-3. Stop the client ZeroTier service.
-4. Replace the client's `planet` file.
-5. Start ZeroTier, join a network, and authorize the member in the Web UI.
-6. Run `zerotier-cli peers` and verify the self-hosted node is a `PLANET`, preferably over `DIRECT`.
-
-Common paths:
-
-- Linux: `/var/lib/zerotier-one/planet`
-- Windows: `C:\ProgramData\ZeroTier\One\planet`
-- macOS: `/Library/Application Support/ZeroTier/One/planet`
-
-| Platform | Validation available | Requirements |
-| --- | --- | --- |
-| Linux | Container startup, signed updates, and isolated network regression | Permission to stop the service and replace Planet; verify end-to-end access in your deployment |
-| Windows / macOS | Common paths documented; no real-device regression in this round | Administrator access to replace Planet, then verify network membership and service access |
-| Android / iOS | Private Planet onboarding unverified | Import support and permissions depend on client version and device policy; joining a Network ID alone does not establish private Planet access |
-
-Validate mobile Planet import, network membership, and end-to-end access on a test device with a recovery path before relying on it.
-
-## Versions and image publishing
-
-Project releases use independent SemVer tags (`vX.Y.Z`). The current release is `v1.2.0`, with image `ghcr.io/csneer/ms-zerotier-planet:v1.2.0`. These are distinct from runtime versions such as ZeroTier `1.16.2`. See the [changelog](CHANGELOG.md) and [release procedure (Chinese)](docs/releasing.md) for repository identity setup, tagging, and GitHub Releases.
-
-The [image workflow](.github/workflows/image-build.yml) validates scripts, Compose, and container regressions before building `linux/amd64` and `linux/arm64` images:
-
-- A release tag `vX.Y.Z` selects `ZT_VERSION` from that tag's `.env.example` (`1.16.2` for `v1.2.0`) and publishes only the project version image, leaving rolling tags unchanged.
-- Pushes to `main`/`master`, weekly builds, and ordinary manual builds continue to track the latest stable ZeroTier release (or a manually specified version), publishing `latest`, ZeroTier version, and Git SHA tags.
-- Record and deploy the image digest when exact image contents must remain fixed. A version tag does not mean every build dependency is locked.
-
-Private GHCR packages require `docker login ghcr.io` on the deployment host. Dependabot checks Docker base images and GitHub Actions weekly.
-
-## Security and licensing
-
-- Do not expose the Web console to the whole Internet. Use a firewall allowlist or `HTTP_HOST=127.0.0.1` with a TLS reverse proxy.
-- For direct administration over ZeroTier, use an explicit ZeroTier address as `HTTP_HOST` or `HTTP_EXTRA_HOSTS`; avoid `0.0.0.0`.
-- Never commit `.env`, `data/`, `backups/`, identities, `.c25519` files, or tokens.
-- ztncui is no longer actively maintained; treat it as a privileged internal service.
-- This repository does not invent a new license for historical code. Review [NOTICE.md](NOTICE.md) and all applicable third-party licenses before public redistribution or commercial use.
-
-Operational deployment guides are kept under [`docs/`](docs/), including the [in-place upgrade guide](docs/in-place-upgrade.md), [multi-root/failover guide](docs/multi-root.md), [Controller-only manual standby guide](docs/controller-standby.md), [Root onboarding guide](docs/root-onboarding.md), and [native Root-only guide](docs/native-root.md).
+If it helps you build your own private network, a [Star](https://github.com/Csneer/zerotier-planet-ms) or [experience report](https://github.com/Csneer/zerotier-planet-ms/issues) is welcome. Include the version, client platform and a sanitized topology when reporting issues—never identity secrets, tokens or backups.

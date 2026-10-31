@@ -121,7 +121,7 @@ docker stop OLD_CONTAINER
 
 ## 从单 Root 扩展为多 Root
 
-先在 B 按 [Root-only 安装步骤](../README.md#首次安装)完成 external staging 和独立身份生成，或采用[原生 systemd 方案](native-root.md)。下面命令仅适用于 B 的全新空目录和已有系统 ZeroTier 二进制；已有 identity 则沿用，不重复生成：
+先在 B 按 [Root-only 安装步骤](operations.md#首次安装)完成 external staging 和独立身份生成，或采用[原生 systemd 方案](native-root.md)。下面命令仅适用于 B 的全新空目录和已有系统 ZeroTier 二进制；已有 identity 则沿用，不重复生成：
 
 ```bash
 (

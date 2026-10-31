@@ -117,7 +117,7 @@ Web 管理台默认只监听服务器的 `127.0.0.1:3443`。从 Agent 所在电�
 ssh -N -L 3443:127.0.0.1:3443 user@server
 ```
 
-登录后进入 `Downloads` 下载 `planet`，核对页面显示的 SHA-256，再停止客户端 ZeroTier 服务、替换客户端数据目录中的 `planet` 并启动服务。Linux、Windows、macOS 的常见目录见主 README；Android/iOS 的私有 Planet 导入权限因客户端版本和设备策略不同，Agent 不得直接声称已验证。
+登录后进入 `Downloads` 下载 `planet`，核对页面显示的 SHA-256。桌面/服务器客户端先停止 ZeroTier 服务、替换数据目录中的 `planet`，再启动服务；Linux、Windows、macOS 的常见目录见[运维指南的客户端配置](operations.md#客户端配置)。移动端按 [ZeroTier 官方文档](https://docs.zerotier.com/roots/#mobile)核对导入入口：官方移动客户端自 `1.16.0` 起支持自定义 URL，文档也提供 Settings → Add Planet File 的 Base64 导入方式。Android/iOS 的实际安装构建、权限和私有 World 仍须逐项验收；Agent 不得把上游功能说明当作本次设备接入已验证。
 
 ## 日常升级与备份
 
