@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="460" viewBox="0 0 1200 460" role="img" aria-labelledby="title desc">
+<title id="title">Your devices, one encrypted virtual network</title>
+<desc id="desc">A home NAS, travel laptop and cloud server connect peer to peer over ZeroTier. A separately drawn self-hosted control plane manages membership. Root relay is a fallback if a direct path is unavailable.</desc>
+<defs><style>text{font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}.eyebrow{font-size:13px;font-weight:650;letter-spacing:2px;fill:#92a6bb}.label{font-size:20px;font-weight:600;fill:#eef4fa}.meta{font-size:15px;fill:#a7b6c8}.mono{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:16px;fill:#a9e7d1}.small{font-size:13px;fill:#9bacc0}</style></defs>
+<rect width="1200" height="460" rx="24" fill="#101b2b"/>
+<text x="48" y="48" class="eyebrow">ZEROTIER PLANET / YOUR INFRASTRUCTURE</text>
+<text x="48" y="91" font-size="32" font-weight="600" fill="#f3f7fb">Different places. One private network.</text>
+<rect x="48" y="134" width="1104" height="170" rx="18" fill="#152335" stroke="#304155"/>
+<path d="M340 202H498M702 202H860" stroke="#70d0ac" stroke-width="2"/>
+<circle cx="420" cy="202" r="5" fill="#70d0ac"/><circle cx="780" cy="202" r="5" fill="#70d0ac"/>
+<text x="420" y="177" text-anchor="middle" class="small">Encrypted P2P</text><text x="780" y="177" text-anchor="middle" class="small">Encrypted P2P</text>
+<g transform="translate(82 174)" stroke="#a7b6c8" stroke-width="1.8" fill="none"><rect width="34" height="46" rx="6"/><path d="M8 12H26M8 22H26M8 32H20"/></g>
+<text x="136" y="190" class="label">Home NAS</text><text x="136" y="218" class="meta">Files · Photos · Backups</text><text x="136" y="259" class="mono">10.42.0.10</text>
+<g transform="translate(504 179)" stroke="#a7b6c8" stroke-width="1.8" fill="none"><rect width="40" height="28" rx="3"/><path d="M-5 34H45L40 28H0Z"/></g>
+<text x="565" y="190" class="label">Your laptop</text><text x="565" y="218" class="meta">At home or away</text><text x="565" y="259" class="mono">10.42.0.20</text>
+<g transform="translate(885 179)" stroke="#a7b6c8" stroke-width="1.8" fill="none"><rect width="40" height="15" rx="4"/><rect y="22" width="40" height="15" rx="4"/><path d="M7 7H10M7 29H10"/></g>
+<text x="946" y="190" class="label">Cloud server</text><text x="946" y="218" class="meta">Build · SSH · Services</text><text x="946" y="259" class="mono">10.42.0.30</text>
+<path d="M600 304V338" stroke="#6983a3" stroke-width="1.5" stroke-dasharray="4 5"/>
+<rect x="48" y="338" width="1104" height="76" rx="14" fill="#1c2c41"/>
+<text x="72" y="369" font-size="17" font-weight="600" fill="#eef4fa">Self-hosted Planet / Root + Controller</text>
+<text x="72" y="394" class="small">Discovery · Member authorization · Virtual IPs · Relay when needed</text>
+<text x="1128" y="370" text-anchor="end" class="meta">IPv4 / IPv6</text>
+<text x="1128" y="394" text-anchor="end" class="small">Normal ZeroTier transport is end-to-end encrypted</text>
+<text x="48" y="440" class="small">Conceptual topology · Example virtual IPs · Direct connectivity depends on the underlying network</text>
+</svg>
